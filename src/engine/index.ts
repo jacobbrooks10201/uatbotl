@@ -13,6 +13,7 @@ export type { Scenario } from './engine';
 export { commandKey, enumerateAction, legalOptions } from './options';
 export {
   budgetFor,
+  buildablesFor,
   computeBudget,
   controlledGates,
   describePiece,

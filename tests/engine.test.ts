@@ -17,7 +17,7 @@ const Q0 = { owner: 0 as const, unit: 'queen', at: 'c1' };
 const K1 = { owner: 1 as const, unit: 'king', at: 'p16' };
 const Q1 = { owner: 1 as const, unit: 'queen', at: 'n16' };
 
-function stones(owner: PlayerId, squares: string[]) {
+function stones(owner: PlayerId | "n", squares: string[]) {
   return squares.map((s) => ({ owner, at: s }));
 }
 
@@ -279,6 +279,32 @@ describe('gifts and bonus actions', () => {
     const s2 = play(s1, 'a1', 2, ['scrap', 'b1']);
     expect(at(s2, 'b1')?.def).toBe('scrap');
     expect(s2.pending).toMatchObject({ kind: 'action', context: 'main' });
+  });
+});
+
+describe('passives and cross-player choices', () => {
+  it('Vaulter fires its passive forward Shoot at the start of its owner\'s turn', () => {
+    const s0 = scenario({
+      active: 1,
+      pieces: [K0, Q0, K1, Q1, { owner: 0, unit: 'vaulter', at: 'e4' }, { owner: 1, unit: 'warrior', at: 'e9' }],
+    });
+    const s1 = play(s0, 'p16', 0, ['o15']);
+    expect(at(s1, 'e9')).toBeUndefined();
+    expect(s1.captures[0]).toHaveLength(1);
+    expect(s1.pending).toMatchObject({ kind: 'action', context: 'main', player: 0 });
+  });
+
+  it('the displaced unit\'s owner makes the Displace choice, even on the other turn', () => {
+    const s0 = scenario({
+      pieces: [K0, Q0, K1, Q1, { owner: 0, unit: 'hoglouse', at: 'e5' }, { owner: 1, unit: 'warrior', at: 'e6' }],
+      tiles: [{ tile: 'displace', at: 'd6' }],
+    });
+    const s1 = play(s0, 'e5', 0, ['e6', 'd6']); // relocate the enemy Warrior onto Displace
+    expect(s1.pending).toMatchObject({ kind: 'displace', player: 1 });
+    expect(() => applyInput(s1, { type: 'choose', player: 0, cmd: legalOptions(s1)[0] })).toThrow();
+    const s2 = play(s1, null, -2, ['c7']);
+    expect(at(s2, 'c7')?.def).toBe('warrior');
+    expect(s2.active).toBe(1);
   });
 });
 
