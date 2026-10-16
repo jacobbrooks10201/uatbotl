@@ -220,7 +220,10 @@ export function specOf(s: GameState, cmd: Command): ActionSpec | null {
   return d ? (actionsOf(R, s, p)[cmd.a] ?? null) : null;
 }
 
-/** Positional key of the start-of-turn board for repetition (§5). HP and IDs are ignored. */
+/**
+ * Positional key of the start-of-turn board for repetition (§5). HP counts:
+ * damage kept by Memory makes a position different. IDs are ignored.
+ */
 export function positionKey(s: GameState): string {
   const parts: string[] = [`t${s.active}`];
   for (let i = 0; i < s.board.length; i++) {
@@ -231,6 +234,7 @@ export function positionKey(s: GameState): string {
     if (uid) {
       const p = s.pieces[uid];
       e += `:${p.owner}${p.kind === 'stone' ? (p.reinforced ? 'R' : 'S') : p.def}`;
+      if (p.hp < p.maxHp) e += `@${p.hp}`;
     }
     if (tile) e += `/${tile.def}`;
     parts.push(e);

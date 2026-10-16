@@ -99,4 +99,4 @@ The spec (`init-spec_v0_7.md`) and roster (`1200_BC_unit_spec.md`) leave some ca
 
 ## Repetition
 
-The start-of-turn position key contains: side to move, and each square's piece (owner + unit type, or stone / reinforced stone) and tile type. HP and IDs are ignored (§5). The third occurrence is a draw.
+The start-of-turn position key contains: side to move, and each square's piece (owner + unit type, or stone / reinforced stone, plus its HP when below full) and tile type. **HP counts:** a cycle that drains a Memory unit (King, Queen, Clay Wall) by 1 each time never repeats. Pieces without Memory are always at full HP at the start of a turn, so only Memory damage matters. IDs are ignored (§5). The third occurrence is a draw.

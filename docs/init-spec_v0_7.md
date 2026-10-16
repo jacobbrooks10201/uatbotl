@@ -102,7 +102,7 @@ Order is therefore always fully determined. There is no simultaneity to arbitrat
 - **Resignation.** A player may resign at any time.
 - **Stalemate loses.** If the active player has no legal action in the action phase, they lose. This should be rare; heavy stone flooding is the most likely route.
 - **Draw by agreement.** Players can agree to a draw.
-- **Draw by repetition.** If the same board state occurs for the third time, the game is drawn. **Board state means the start-of-turn configuration of pieces and tiles on the board.** Internal state does not matter: differing HP is still the same state, and IDs are ignored, so two of your own stones swapping places is the same state.
+- **Draw by repetition.** If the same board state occurs for the third time, the game is drawn. **Board state means the start-of-turn configuration of pieces and tiles on the board, including HP.** HP counts as information: if a Memory unit loses HP every cycle, the positions differ and it is not a repetition. (Pieces without Memory are always at full HP at the start of a turn.) IDs are ignored, so two of your own stones swapping places is the same state.
 
 ---
 

@@ -634,6 +634,14 @@ describe('game end', () => {
     expect(s.result).toEqual({ winner: null, reason: 'repetition' });
   });
 
+  it('HP counts for repetition: draining a Memory unit each cycle is not a repeat', () => {
+    // Red's King hits its own Queen every turn while Blue's King steps back and forth.
+    let s = scenario({ pieces: [K0, { ...Q0, at: 'b1' }, K1, Q1] });
+    for (let i = 0; i < 8; i++) s = play(play(s, 'a1', 1, ['b1']), i % 2 ? 'o16' : 'p16', 0, [i % 2 ? 'p16' : 'o16']);
+    expect(s.result).toBeNull();
+    expect(at(s, 'b1')?.hp).toBe(2);
+  });
+
   it('resignation and draw by agreement', () => {
     const s0 = newGame(DEFAULT_AGE);
     expect(applyInput(s0, { type: 'resign', player: 0 }).result).toEqual({ winner: 1, reason: 'resignation' });
