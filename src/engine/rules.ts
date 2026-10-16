@@ -2,20 +2,24 @@
 
 import { Geo } from './geometry';
 import type {
+  ActionSpec,
   AgeDef,
   Budget,
   BuildScope,
+  GameOptions,
   GameState,
   Owner,
   PassiveSpec,
   Piece,
   PlayerId,
+  Resource,
   Sq,
   TileDef,
   TraitSpec,
   UnitDef,
 } from './types';
 import { RESOURCES } from './types';
+import { noteAppend } from './notation';
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -25,10 +29,21 @@ export class Rules {
   readonly geo: Geo;
   readonly units = new Map<string, UnitDef>();
   readonly tiles = new Map<string, TileDef>();
+  /** Unit types that give gifts (hot-path lookup). */
+  readonly giftDefs = new Set<string>();
+  /** The age with unit and tile costs set for this board size. */
+  readonly age: AgeDef;
 
-  constructor(readonly age: AgeDef) {
-    this.geo = new Geo(age.boardSize);
-    for (const u of age.units) this.units.set(u.id, u);
+  constructor(age: AgeDef, width = age.boardSize, height = age.boardSize) {
+    this.geo = new Geo(width, height);
+    const sized = age.costsBySize[width] ?? {};
+    const resize = <T extends { id: string; cost?: { res: Resource; n: number } }>(d: T): T =>
+      d.cost && sized[d.id] !== undefined ? { ...d, cost: { ...d.cost, n: sized[d.id] } } : d;
+    this.age = age = { ...age, units: age.units.map(resize), tiles: age.tiles.map(resize) };
+    for (const u of age.units) {
+      this.units.set(u.id, u);
+      if (u.traits.some((t) => t.kw === 'queensgift' || t.kw === 'kingsgift')) this.giftDefs.add(u.id);
+    }
     for (const t of age.tiles) this.tiles.set(t.id, t);
   }
 
@@ -44,18 +59,26 @@ export class Rules {
   }
 }
 
+const ages = new Map<string, AgeDef>();
+/** Rules per age and board size, keyed "age:WxH". */
 const registry = new Map<string, Rules>();
 
 export function registerAge(age: AgeDef): Rules {
-  const r = new Rules(age);
-  registry.set(age.id, r);
-  return r;
+  ages.set(age.id, age);
+  for (const k of registry.keys()) if (k.startsWith(`${age.id}:`)) registry.delete(k);
+  return rulesFor(age.id);
 }
 
-export function rulesFor(ageOrState: string | GameState): Rules {
+/** Rules for an age (default board size), or for a game state (its own board size). */
+export function rulesFor(ageOrState: string | GameState, opts: GameOptions = {}): Rules {
   const id = typeof ageOrState === 'string' ? ageOrState : ageOrState.age;
-  const r = registry.get(id);
-  if (!r) throw new Error(`Age not registered: ${id}`);
+  const age = ages.get(id);
+  if (!age) throw new Error(`Age not registered: ${id}`);
+  const w = typeof ageOrState === 'string' ? (opts.width ?? age.boardSize) : ageOrState.width;
+  const h = typeof ageOrState === 'string' ? (opts.height ?? age.boardSize) : ageOrState.height;
+  const key = `${id}:${w}x${h}`;
+  let r = registry.get(key);
+  if (!r) registry.set(key, (r = new Rules(age, w, h)));
   return r;
 }
 
@@ -124,31 +147,62 @@ export function controlledGates(R: Rules, s: GameState, player: PlayerId): Set<s
   return out;
 }
 
+type GiftTrait = Extract<TraitSpec, { kw: 'queensgift' | 'kingsgift' }>;
+
 /**
- * Effective passives of a piece, including Kingsgift / Queensgift grants from
- * its owner's other pieces (§9.3). Non-additive duplicates add nothing.
+ * Gifts a piece receives from its owner's units (§9.3): Kingsgift to the King,
+ * Queensgift to the Queen. In ID order of the givers; non-additive duplicates
+ * add nothing.
  */
-export function effectivePassives(R: Rules, s: GameState, p: Piece): PassiveSpec[] {
+function giftsTo(R: Rules, s: GameState, p: Piece): GiftTrait[] {
   const d = unitDef(R, p);
-  if (!d) return [];
-  const out: PassiveSpec[] = [...d.passives];
-  if (!d.role || p.owner === 'n') return out;
-  const giftKw = d.role === 'king' ? 'kingsgift' : 'queensgift';
+  if (!d || p.owner === 'n') return [];
+  const kws = new Set<string>();
+  if (d.role === 'king') kws.add('kingsgift');
+  if (d.role === 'queen') kws.add('queensgift');
+  const out: GiftTrait[] = [];
   const seen = new Set<string>();
-  for (const q of unitsOf(s, p.owner)) {
-    const qd = unitDef(R, q);
-    if (!qd) continue;
-    for (const t of qd.traits) {
-      if (t.kw !== giftKw) continue;
-      const key = JSON.stringify(t.passive);
-      if (!t.additive) {
+  const givers: Piece[] = [];
+  for (const q of Object.values(s.pieces)) if (q.owner === p.owner && q.def && R.giftDefs.has(q.def)) givers.push(q);
+  if (!givers.length) return out;
+  givers.sort((a, b) => a.id - b.id);
+  for (const q of givers) {
+    for (const t of unitDef(R, q)?.traits ?? []) {
+      if (!kws.has(t.kw)) continue;
+      const g = t as GiftTrait;
+      const key = JSON.stringify([g.kw, g.passive, g.action, g.trait]);
+      if (!g.additive) {
         if (seen.has(key)) continue;
         seen.add(key);
       }
-      out.push(t.passive);
+      out.push(g);
     }
   }
   return out;
+}
+
+/** Passives of a piece, including gifted ones. */
+export function effectivePassives(R: Rules, s: GameState, p: Piece): PassiveSpec[] {
+  const d = unitDef(R, p);
+  if (!d) return [];
+  return [...d.passives, ...giftsTo(R, s, p).flatMap((g) => (g.passive ? [g.passive] : []))];
+}
+
+/** Action slots of a piece: its own, then gifted ones. A Command's `a` indexes this list. */
+export function actionsOf(R: Rules, s: GameState, p: Piece): ActionSpec[] {
+  const d = unitDef(R, p);
+  if (!d) return [];
+  return [...d.actions, ...giftsTo(R, s, p).flatMap((g) => (g.action ? [g.action] : []))];
+}
+
+/** Whether a piece has a trait, its own or gifted. */
+export function hasEffectiveTrait(R: Rules, s: GameState, p: Piece, kw: TraitSpec['kw']): boolean {
+  return hasTrait(R, p, kw) || giftsTo(R, s, p).some((g) => g.trait?.kw === kw);
+}
+
+/** Gifted traits of a piece (for display). */
+export function giftedTraits(R: Rules, s: GameState, p: Piece): TraitSpec[] {
+  return giftsTo(R, s, p).flatMap((g) => (g.trait ? [g.trait] : []));
 }
 
 // ---------------------------------------------------------------------------
@@ -156,29 +210,44 @@ export function effectivePassives(R: Rules, s: GameState, p: Piece): PassiveSpec
 // ---------------------------------------------------------------------------
 
 export function emptyBudget(): Budget {
-  return { E: 0, A: 0, D: 0, M: 0, I: 0 };
+  return { E: 0, P: 0, D: 0, M: 0, I: 0 };
 }
 
-export function computeBudget(R: Rules, s: GameState, player: PlayerId): Budget {
+/**
+ * Every template instance behind a player's budget (§10.2): a pair of stones
+ * for Prevenience (horizontal), Multiplicity (vertical) and Deduction
+ * (diagonal), a single stone for Extension and Incursion (isolated stones).
+ */
+export function resourceInstances(R: Rules, s: GameState, player: PlayerId): Record<Resource, Sq[][]> {
   const g = R.geo;
   const own = new Set<Sq>();
   for (const p of piecesOf(s, player)) if (p.kind === 'stone') own.add(p.sq);
-  const has = (f: number, r: number) => g.inBounds(f, r) && own.has(g.sq(f, r));
-  const b = emptyBudget();
-  for (const sq of own) {
+  const at = (f: number, r: number) => (g.inBounds(f, r) && own.has(g.sq(f, r)) ? g.sq(f, r) : null);
+  const out: Record<Resource, Sq[][]> = { E: [], P: [], D: [], M: [], I: [] };
+  for (const sq of [...own].sort((a, b) => a - b)) {
     const f = g.file(sq);
     const r = g.rank(sq);
-    b.E++;
-    if (has(f + 1, r)) b.A++;
-    if (has(f, r + 1)) b.M++;
-    if (has(f + 1, r + 1)) b.D++;
-    if (has(f - 1, r + 1)) b.D++;
+    out.E.push([sq]);
+    const pair = (res: Resource, q: Sq | null) => {
+      if (q !== null) out[res].push([sq, q]);
+    };
+    pair('P', at(f + 1, r));
+    pair('M', at(f, r + 1));
+    pair('D', at(f + 1, r + 1));
+    pair('D', at(f - 1, r + 1));
     // Incursion: part of no other template, i.e. no own stone in any of the 8 neighbours.
     let isolated = true;
     for (let df = -1; df <= 1 && isolated; df++)
-      for (let dr = -1; dr <= 1; dr++) if ((df || dr) && has(f + df, r + dr)) isolated = false;
-    if (isolated) b.I++;
+      for (let dr = -1; dr <= 1; dr++) if ((df || dr) && at(f + df, r + dr) !== null) isolated = false;
+    if (isolated) out.I.push([sq]);
   }
+  return out;
+}
+
+export function computeBudget(R: Rules, s: GameState, player: PlayerId): Budget {
+  const inst = resourceInstances(R, s, player);
+  const b = emptyBudget();
+  for (const r of RESOURCES) b[r] = inst[r].length;
   return b;
 }
 
@@ -193,14 +262,22 @@ export interface Buildable {
   cost: { res: keyof Budget; n: number };
 }
 
+/** Whether a builder with `scope` may build unit `u` at all (ignoring unlocks and budget). */
+export function scopeAllows(scope: BuildScope, u: UnitDef): boolean {
+  if ('gate' in scope) return u.gate ? u.gate === scope.gate : u.requires === scope.gate;
+  if (u.gate) return !!scope.gates;
+  return !u.requires && u.cost?.res === scope.res;
+}
+
 /** Everything a builder with `scope` may build for `player`, ignoring budget and squares. */
 export function buildablesFor(R: Rules, s: GameState, player: PlayerId, scope: BuildScope): Buildable[] {
   const gates = controlledGates(R, s, player);
   const out: Buildable[] = [];
   for (const u of R.age.units) {
-    if (!u.cost) continue;
+    if (!u.cost || !scopeAllows(scope, u)) continue;
     if (u.requires && !gates.has(u.requires)) continue;
-    if ('gate' in scope && !(u.gate || u.requires === scope.gate)) continue;
+    // Unitary units: one per player.
+    if (u.traits.some((t) => t.kw === 'unitary') && unitsOf(s, player).some((p) => p.def === u.id)) continue;
     out.push({ kind: 'unit', id: u.id, cost: u.cost });
   }
   if ('gate' in scope) {
@@ -252,6 +329,7 @@ function newPiece(R: Rules, s: GameState, owner: Owner, kind: 'unit' | 'stone', 
   s.pieces[p.uid] = p;
   s.board[sq] = p.uid;
   s.landings.push({ uid: p.uid, sq });
+  arrive(s, sq);
   return p;
 }
 
@@ -271,10 +349,17 @@ export function movePiece(s: GameState, uid: string, to: Sq): void {
   s.board[to] = uid;
   p.sq = to;
   s.landings.push({ uid, sq: to });
+  arrive(s, to);
+}
+
+/** Note that something moved to or was created on `sq` this turn. */
+export function arrive(s: GameState, sq: Sq): void {
+  if (!s.arrivals.includes(sq)) s.arrivals.push(sq);
 }
 
 export function placeTile(R: Rules, s: GameState, sq: Sq, def: string): void {
   s.tiles[sq] = { def, spent: false };
+  arrive(s, sq);
   // A tile placed beneath a piece is a landing for that piece (§12.2).
   const uid = s.board[sq];
   if (uid) s.landings.push({ uid, sq });
@@ -296,12 +381,27 @@ export function damage(R: Rules, s: GameState, uid: string, n: number, by: Playe
   p.hp -= n;
   log(s, by, `${describePiece(R, p)} takes ${n} damage (${Math.max(p.hp, 0)}/${p.maxHp})`);
   if (p.hp > 0) return;
+  kill(R, s, uid, by);
+}
+
+/** Destroy a piece outright (Clear, Self-destruct). `by` gets it in Captures (§13). */
+export function destroy(R: Rules, s: GameState, uid: string, by: PlayerId, why: string): void {
+  const p = s.pieces[uid];
+  if (!p || s.result) return;
+  log(s, by, `${describePiece(R, p)} ${why}`);
+  kill(R, s, uid, by);
+}
+
+function kill(R: Rules, s: GameState, uid: string, by: PlayerId): void {
+  const p = s.pieces[uid];
   s.board[p.sq] = null;
   delete s.pieces[uid];
   s.dead[uid] = { ...p, hp: 0, capturedBy: by, turn: s.turn };
   s.captures[by].push(uid);
   log(s, by, `${describePiece(R, p)} dies`);
-  if (hasTrait(R, p, 'ipseity') && p.owner !== 'n') endGame(s, other(p.owner), 'ipseity');
+  const ipseity = hasTrait(R, p, 'ipseity') && p.owner !== 'n';
+  noteAppend(s, ipseity ? '##' : '#', R.geo.name(p.sq));
+  if (ipseity) endGame(s, other(p.owner as PlayerId), 'ipseity');
 }
 
 export function budgetText(b: Budget): string {

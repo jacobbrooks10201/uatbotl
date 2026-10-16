@@ -12,6 +12,7 @@ import {
   DEFAULT_AGE,
   IllegalInput,
   newGame,
+  type GameOptions,
   type GameState,
   type Input,
   type PlayerId,
@@ -33,6 +34,8 @@ export interface SaveFile {
   format: 'uatbotl-save';
   version: 1;
   age: string;
+  /** Board size etc. Absent in older saves (default board). */
+  options?: GameOptions;
   inputs: Input[];
 }
 
@@ -49,8 +52,9 @@ export class LocalMatch implements MatchClient {
   constructor(
     readonly age: string = DEFAULT_AGE,
     inputs: Input[] = [],
+    readonly options: GameOptions = {},
   ) {
-    this.current = newGame(age);
+    this.current = newGame(age, options);
     this.checkpoints.set(0, structuredClone(this.current));
     for (const i of inputs) this.push(applyInput(this.current, i), i);
   }
@@ -72,6 +76,16 @@ export class LocalMatch implements MatchClient {
     return this.log.length > 0;
   }
 
+  /** The state after the first `n` inputs (for replay). Replays from the nearest checkpoint. */
+  stateAt(n: number): GameState {
+    n = Math.max(0, Math.min(n, this.log.length));
+    if (n === this.log.length) return this.current;
+    const base = Math.floor(n / CHECKPOINT_EVERY) * CHECKPOINT_EVERY;
+    const s = structuredClone(this.checkpoints.get(base)!);
+    for (let i = base; i < n; i++) applyInputMut(s, this.log[i]);
+    return s;
+  }
+
   undo(): void {
     if (!this.canUndo()) return;
     this.log.pop();
@@ -90,13 +104,13 @@ export class LocalMatch implements MatchClient {
   }
 
   toSave(): SaveFile {
-    return { format: 'uatbotl-save', version: 1, age: this.age, inputs: [...this.log] };
+    return { format: 'uatbotl-save', version: 1, age: this.age, options: { ...this.options }, inputs: [...this.log] };
   }
 
   static fromSave(data: unknown): LocalMatch {
     const f = data as SaveFile;
     if (!f || f.format !== 'uatbotl-save' || !Array.isArray(f.inputs)) throw new Error('Not a Uatbotl save file');
-    return new LocalMatch(f.age, f.inputs);
+    return new LocalMatch(f.age, f.inputs, f.options ?? {});
   }
 
   private push(next: GameState, input: Input): void {

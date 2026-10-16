@@ -10,5 +10,18 @@
   <body>
     <div id="app"></div>
     <script type="module" src="/src/ui/main.ts"></script>
+    <script>
+      // This page is the source for the dev server and the build. Opened
+      // straight from disk it cannot load its scripts, so point to the build.
+      addEventListener('load', () => {
+        const app = document.getElementById('app');
+        if (app.childElementCount) return;
+        app.innerHTML =
+          '<div style="font:14px monospace;padding:24px;max-width:640px;line-height:1.5">' +
+          '<p>This index.html is the source page; it only runs through <code>npm run dev</code>.</p>' +
+          '<p>To play from a file, open <a href="dist/index.html">dist/index.html</a> ' +
+          '(run <code>npm run build</code> to make it), or a dated copy in archive/.</p></div>';
+      });
+    </script>
   </body>
 </html>

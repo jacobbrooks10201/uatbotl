@@ -17,6 +17,7 @@
 
 import { ALL_DIRS, dirSet, type Vec } from './geometry';
 import {
+  actionsOf,
   affordable,
   budgetFor,
   buildablesFor,
@@ -86,6 +87,35 @@ export function planCastle(R: Rules, s: GameState, unit: Piece, v: Vec): CastleP
   return { king, kingTo, unitTo };
 }
 
+/** Squares in front that Shelter {width} (centred) or Shield (one square) fill. */
+export function wallVectors(spec: { kw: 'shelter'; width?: number } | { kw: 'shield' }, fw: number): Vec[] {
+  if (spec.kw === 'shield') return [[0, fw]];
+  const half = Math.floor((spec.width ?? 3) / 2);
+  const out: Vec[] = [];
+  for (let df = -half; df <= half; df++) out.push([df, fw]);
+  return out;
+}
+
+/** Every square on a piece's file (`vertical`) or rank (`horizontal`), its own included. */
+export function lineSquares(R: Rules, from: Sq, line: 'vertical' | 'horizontal'): Sq[] {
+  const g = R.geo;
+  const out: Sq[] = [];
+  if (line === 'vertical') for (let r = 0; r < g.height; r++) out.push(g.sq(g.file(from), r));
+  else for (let f = 0; f < g.width; f++) out.push(g.sq(f, g.rank(from)));
+  return out;
+}
+
+/** Squares a stone pushed along `v` can end on, nearest first (pushing what is ahead of it). */
+export function rayPushDests(R: Rules, s: GameState, from: Sq, v: Vec): Sq[] {
+  const out: Sq[] = [];
+  const uid = s.board[from]!;
+  for (let k = 1; ; k++) {
+    const to = planPush(R, s, from, v, k).moves.get(uid);
+    if (to === undefined || to === out[out.length - 1]) return out;
+    out.push(to);
+  }
+}
+
 export function enumerateSpec(s: GameState, uid: string, a: number, spec: ActionSpec, o: EnumOpts): Command[] {
   const R = rulesFor(s);
   const g = R.geo;
@@ -137,6 +167,14 @@ export function enumerateSpec(s: GameState, uid: string, a: number, spec: Action
       }
       break;
 
+    case 'raypush':
+      for (const v of dirSet(spec.dirs, fw)) {
+        const hit = castRay(R, s, p.sq, v);
+        if (!hit || hit.kind !== 'stone') continue;
+        for (const to of rayPushDests(R, s, hit.sq, v)) add(hit.sq, to);
+      }
+      break;
+
     case 'undertaking': {
       const full: Command[] = [];
       const partial: Command[] = [];
@@ -170,7 +208,7 @@ export function enumerateSpec(s: GameState, uid: string, a: number, spec: Action
 
     case 'shelter':
     case 'shield': {
-      const vs: Vec[] = spec.kw === 'shelter' ? [[-1, fw], [0, fw], [1, fw]] : [[0, fw]];
+      const vs = wallVectors(spec, fw);
       if (vs.some((v) => {
         const q = g.step(p.sq, v);
         return q !== null && s.board[q] === null;
@@ -191,6 +229,20 @@ export function enumerateSpec(s: GameState, uid: string, a: number, spec: Action
       }
       break;
 
+    case 'clear':
+      if (lineSquares(R, p.sq, spec.line).some((q) => pieceAt(s, q)?.kind === 'stone')) add();
+      break;
+
+    case 'selfdestruct':
+      add();
+      break;
+
+    case 'throw':
+      // Where a stone would go if the unit had just moved here: along its range, empty squares only.
+      for (const q of moveDests(R, s, p.sq, spec.range, fw)) add(q);
+      break;
+
+
     case 'reinforce':
       for (const q of rangeSquares(R, s, p.sq, spec.range, fw)) {
         const t = pieceAt(s, q);
@@ -206,8 +258,9 @@ export function enumerateAction(s: GameState, uid: string, a: number, player: Pl
   const R = rulesFor(s);
   const p = s.pieces[uid];
   const d = p && unitDef(R, p);
-  if (!d || !d.actions[a]) return [];
-  return enumerateSpec(s, uid, a, d.actions[a], { player });
+  const spec = d && actionsOf(R, s, p)[a];
+  if (!spec) return [];
+  return enumerateSpec(s, uid, a, spec, { player });
 }
 
 /** Every legal answer to the current pending decision. */
@@ -223,8 +276,9 @@ export function legalOptions(s: GameState): Command[] {
         const p = s.pieces[uid];
         const d = p && unitDef(R, p);
         if (!d) continue;
-        d.actions.forEach((spec, a) => {
+        actionsOf(R, s, p).forEach((spec, a) => {
           if (pend.context === 'build' && spec.kw !== 'build') return;
+          if (pend.context === 'attack' && spec.kw !== 'attack') return;
           out.push(...enumerateSpec(s, uid, a, spec, { player: pend.player }));
         });
       }

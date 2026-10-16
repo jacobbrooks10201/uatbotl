@@ -8,10 +8,12 @@ registerAge(AGE_1200BC);
 export const DEFAULT_AGE = AGE_1200BC.id;
 
 export * from './types';
-export { actionLabel, applyInput, applyInputMut, decider, IllegalInput, newGame, newScenario, positionKey, specOf } from './engine';
-export type { Scenario } from './engine';
+export { actionLabel, applyInput, applyInputMut, checkOptions, decider, IllegalInput, newGame, newScenario, parseNotation, positionKey, specOf } from './engine';
+export type { ParsedGame, Scenario } from './engine';
+export { formatNotation, notationRounds, resultText, type NoteTurn } from './notation';
 export { commandKey, enumerateAction, legalOptions } from './options';
 export {
+  actionsOf,
   budgetFor,
   buildablesFor,
   computeBudget,
@@ -19,8 +21,13 @@ export {
   describePiece,
   effectivePassives,
   findRole,
+  giftedTraits,
+  hasEffectiveTrait,
+  resourceInstances,
   rulesFor,
+  scopeAllows,
   unitDef,
   unitsOf,
+  type Buildable,
   type Rules,
 } from './rules';

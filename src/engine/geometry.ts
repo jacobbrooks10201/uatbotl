@@ -109,20 +109,27 @@ function parseRangeUncached(spec: RangeSpec): Range {
   throw new Error(`Unknown range spec: ${spec}`);
 }
 
+/** Board width × height. Width is files (a, b, …), height is ranks (1, 2, …). */
 export class Geo {
-  constructor(readonly size: number) {}
+  readonly squares: number;
+  constructor(
+    readonly width: number,
+    readonly height: number,
+  ) {
+    this.squares = width * height;
+  }
 
   sq(f: number, r: number): Sq {
-    return r * this.size + f;
+    return r * this.width + f;
   }
   file(s: Sq): number {
-    return s % this.size;
+    return s % this.width;
   }
   rank(s: Sq): number {
-    return Math.floor(s / this.size);
+    return Math.floor(s / this.width);
   }
   inBounds(f: number, r: number): boolean {
-    return f >= 0 && r >= 0 && f < this.size && r < this.size;
+    return f >= 0 && r >= 0 && f < this.width && r < this.height;
   }
   /** Square offset by a vector, or null if off the board. */
   step(s: Sq, v: Vec, times = 1): Sq | null {
@@ -152,9 +159,9 @@ export class Geo {
     if (df !== 0 && dr !== 0 && Math.abs(df) !== Math.abs(dr)) return null;
     return [Math.sign(df), Math.sign(dr)];
   }
-  /** Board half of a square: 0 or 1. */
+  /** Board half of a square: 0 or 1. On an odd height the middle rank belongs to player 1's half. */
   half(s: Sq): 0 | 1 {
-    return this.rank(s) < this.size / 2 ? 0 : 1;
+    return this.rank(s) < Math.floor(this.height / 2) ? 0 : 1;
   }
   area(s: Sq, n: number, inc: boolean): Sq[] {
     const out: Sq[] = [];

@@ -1,7 +1,7 @@
 // Plays many random games to shake out crashes and state inconsistencies.
 
 import { describe, expect, it } from 'vitest';
-import { applyInputMut, DEFAULT_AGE, legalOptions, newGame, type GameState, type Input } from '../src/engine';
+import { applyInputMut, DEFAULT_AGE, legalOptions, newGame, type GameOptions, type GameState, type Input } from '../src/engine';
 import { checkInvariants } from './helpers';
 
 /** Small deterministic PRNG (mulberry32) so failures are reproducible. */
@@ -15,9 +15,9 @@ function rng(seed: number) {
   };
 }
 
-function randomGame(seed: number, maxInputs: number): { state: GameState; inputs: Input[] } {
+function randomGame(seed: number, maxInputs: number, opts: GameOptions = {}): { state: GameState; inputs: Input[] } {
   const rand = rng(seed);
-  const s = newGame(DEFAULT_AGE);
+  const s = newGame(DEFAULT_AGE, opts);
   const inputs: Input[] = [];
   for (let i = 0; i < maxInputs && !s.result; i++) {
     const pend = s.pending!;
@@ -43,6 +43,20 @@ describe('fuzz', () => {
       if (!state.result) expect(state.pending).not.toBeNull();
     }
   }, 60_000);
+
+  it('random games on other board sizes never crash and stay consistent', () => {
+    const sizes: GameOptions[] = [
+      { width: 8, height: 8 },
+      { width: 12, height: 12 },
+    ];
+    sizes.forEach((opts, i) => {
+      for (let seed = 1; seed <= 4; seed++) {
+        const { state } = randomGame(1000 * (i + 1) + seed, 300, opts);
+        expect([state.width, state.height]).toEqual([opts.width, opts.height]);
+        if (!state.result) expect(state.pending).not.toBeNull();
+      }
+    });
+  }, 120_000);
 
   it('replaying an input log reproduces the state exactly', () => {
     const { state, inputs } = randomGame(99, 250);

@@ -41,7 +41,7 @@ The game ships as configurations keyed to historical ages. **Ages are different 
 
 ## 3. Board and Setup
 
-**16×16 square grid.** Files a–p run left to right from Player 1's side; ranks 1–16 run from Player 1's back rank to Player 2's.
+**16×16 square grid** by default; a game may instead be 8×8 or 12×12 (the starting pieces keep their offsets). Unit and tile costs may differ by board size (set per age; in 1200 BC they are currently the same on every size). Files a–p run left to right from Player 1's side; ranks 1–16 run from Player 1's back rank to Player 2's.
 
 Each player begins with **only a King and a Queen** on their back rank. From each player's own perspective, the back rank reads:
 
@@ -178,7 +178,7 @@ Full stat blocks are in the roster. Rules-relevant notes:
 
 - Passive: **+1 Action**. Traits: **Memory**, **Ipseity**. 10 HP.
 - **Move** 1 square, **Attack** adjacent for 1.
-- **Build:** anything unlocked, adjacent squares only.
+- **Build:** Extension units and gates, adjacent squares only (1200 BC build rules: see the roster).
 - **Stonepush {1}:** push an adjacent stone one square. This is how a walled-in King breaks out.
 
 King building is intentionally slow and trade-offy. It is all you have early; later it operates alongside gates.
@@ -195,9 +195,9 @@ King building is intentionally slow and trade-offy. It is all you have early; la
 
 ### 9.3 Queensgift and Kingsgift
 
-**Queensgift** and **Kingsgift** are generic traits: a piece with one modifies its owner's Queen or King in the specified way, for as long as it is on the board. The modification belongs to the Queen or King, so **her or his ID governs when the granted passive resolves.** A duplicate granting the same modification adds nothing, unless the modification is additive (`+1 Action`), in which case each source adds its own.
+**Queensgift** and **Kingsgift** are generic traits: a piece with one modifies its owner's Queen or King in the specified way, for as long as it is on the board. A gift can grant a passive, an action or a trait. The modification belongs to the Queen or King, so **her or his ID governs when the granted passive resolves.** A duplicate granting the same modification adds nothing, unless the modification is additive (`+1 Action`), in which case each source adds its own.
 
-The first Queensgift is the **Ardent Follower's** (3 Extension): the Queen gains Undertaking as a **passive**, while keeping it as an action. This speeds up the early economy, so players don't have to choose between growing and doing things. Because the passive is mandatory, it can become a liability later, and a player may want to kill their own follower.
+The first Queensgift is the **Ardent Follower's** (2 Multiplicity): the Queen gains a **stone throw** passive, placing a stone along her rays without moving. In 1200 BC every gift unit (Accelerator, Ardent Follower, Advisor, Royal Path, General) has 1 HP, cannot move, can self-destruct, is unitary, and is **Fragile**: at the start of its owner's turn it dies if their stones can no longer produce its cost.
 
 ---
 
@@ -207,7 +207,7 @@ Stones simultaneously **block movement**, **block LoS**, and (if player-colored)
 
 - **5 HP, no Memory.** Difficult to destroy; comparatively easy to move. Dedicated stone-moving and stone-destroying units are planned; the Stone Director and the King's Stonepush are the first.
 - **Player-colored stones** come from Undertaking and count toward their owner's resources.
-- **Neutral stones** come from gate actions (Shelter, Shield). They block both players and count for no one.
+- **Neutral stones** block both players and count for no one. (In 1200 BC, gate walls are now built from the owner's Scrap instead; see the roster.)
 - Stones **trigger tiles** when placed on or moved onto them (§12). A stone sitting on a Dogma tile keeps it pressed.
 - Killed stones go to the killer's Captures (§13).
 
@@ -231,7 +231,7 @@ An immovable stone stops a push chain: a push that would move one does nothing t
 | Resource | Template (counted per match) | Domain |
 |---|---|---|
 | **Extension** | Each stone you own | General utility; weaker generic alternatives to specialized options |
-| **Anticipation** | Each horizontally adjacent pair | Defense: walls, protection, defensive mobility |
+| **Prevenience** | Each horizontally adjacent pair | Defense: walls, protection, defensive mobility |
 | **Deduction** | Each diagonally adjacent pair | Tile-laying, and units that combo with tile activation |
 | **Multiplicity** | Each vertically adjacent pair | Ramp: producing more units and actions |
 | **Incursion** | Each stone that is part of no other template (Extension excepted) | Aggressive, high-damage units and tiles |
@@ -258,9 +258,9 @@ Walls literally make defense, diagonals make tile play, columns make ramp, block
 
 Gates are units that **unlock other units** and serve as forward production and defensive structures.
 
-- **Three gates** in 1200 BC, one per adjacency resource: Deduction, Multiplicity, Incursion. Extension and Anticipation units need no gate.
+- **Four gate types** in 1200 BC, one per non-Extension resource: Prevenience, Deduction, Multiplicity, Incursion. Extension units need no gate.
 - **Unlocking.** A unit whose requirement names a gate is unlocked while you control at least one gate of that type.
-- **Who builds what.** A gate's Build action can place units that require that gate type, or any gate, within the gate's build range. The King can build anything unlocked, adjacent only.
+- **Who builds what.** A gate's Build action can place units that require that gate type, and gates of its own type, within the gate's build range. The King builds Extension units and gates, adjacent only. (1200 BC; see the roster.)
 - **Build range is set per gate and can be any range.** The three basic gates use a square area: Deduction range2, Multiplicity range2, Incursion range3 (range2 is the 5×5 area centered on the gate). The Aggressive Incursion Gate builds onto a single square, five forward.
 - **1 HP, no Memory** in 1200 BC.
 - **Multiple gates of the same type are legal.** They grant no additional unlocks; you build them for position and for their other actions.
@@ -268,16 +268,16 @@ Gates are units that **unlock other units** and serve as forward production and 
 
 ### 11.1 Gate walls
 
-The Deduction and Multiplicity Gates have **actions** that create neutral stones in front of them:
+The Deduction, Multiplicity and Prevenience Gates have **actions** that build a wall of the owner's **Scrap** in front of them:
 
-- **Shelter** (Deduction Gate): three neutral stones, one forward and one on each forward diagonal.
-- **Shield** (Multiplicity Gate): one neutral stone directly forward.
+- **Shelter** (Deduction Gate): three Scrap, one forward and one on each forward diagonal. **Shelter {5}** (Prevenience Gate): five Scrap in a row in front.
+- **Shield** (Multiplicity Gate): one Scrap directly forward.
 
-Occupied squares are skipped; nothing is pushed. Since a gate doesn't move, the neutral stones one gate can make are bounded by the squares in front of it.
+Occupied squares are skipped; nothing is pushed. Since a gate doesn't move, the wall one gate can make is bounded by the squares in front of it.
 
 **The Incursion Gate has no wall action.** It trades defensibility for a larger build range.
 
-**When a gate dies,** its neutral stones persist. If it was your last gate of that type, units requiring it can no longer be built. Units already on the board are unaffected. Cutting off production is the real prize.
+**When a gate dies,** its wall persists. If it was your last gate of that type, units requiring it can no longer be built. Units already on the board are unaffected. Cutting off production is the real prize.
 
 ---
 
@@ -347,7 +347,7 @@ A turtled player's economy is geometrically concentrated. The answers:
 
 The Incursion Gate's missing wall action makes aggressive bases structurally more exposed than defensive ones.
 
-*Watch item:* a horizontal wall is now literally the Anticipation template, and reinforced stones cannot be pushed at all. Defensive stone shapes pay defensive resources, so the stone-moving and stone-killing roster has to keep pace.
+*Watch item:* a horizontal wall is now literally the Prevenience template, and reinforced stones cannot be pushed at all. Defensive stone shapes pay defensive resources, so the stone-moving and stone-killing roster has to keep pace.
 
 ---
 
@@ -369,8 +369,9 @@ The Incursion Gate's missing wall action makes aggressive bases structurally mor
 - **Pave: {move} {tile}** — move, and leave the tile on the square just left (if that square has no tile).
 - **Lay: {tile} {range}** — place the tile on one tile-free square in range.
 - **Castle: {direction}** — the unit and its owner's King must be aligned in that direction with nothing between them. The King moves two squares toward the unit; the unit then moves to the square adjacent to the King on the opposite side. If blocked, as much as possible happens.
-- **Shelter** — create three neutral stones: forward and both forward diagonals. Occupied squares are skipped.
-- **Shield** — create one neutral stone directly forward. Skipped if occupied.
+- **Shelter {n} {unit}** — create n pieces (default 3; Scrap in 1200 BC) centred in front: forward and the forward diagonals for n = 3. Occupied squares are skipped.
+- **Shield {unit}** — create one piece (Scrap in 1200 BC) directly forward. Skipped if occupied.
+- **Stonepush {dirs ray} {any distance}** — the first piece along a ray, if it is a stone, is pushed away along that ray as far as the player chooses, pushing pieces ahead of it.
 - **Relocate: {x} units from {range} to {range}** — move up to x units of any owner from squares in the first range to empty squares in the second. Ranges are measured from the acting unit.
 - **Reallocate: {x} stones from {range} to {range}** — as Relocate, for stones of any owner, including neutral. Reinforced stones cannot be moved.
 
@@ -381,6 +382,8 @@ The Incursion Gate's missing wall action makes aggressive bases structurally mor
 - **Unitary** — of a unit: a player may control only one at a time. Of a tile: only one may exist on each half of the board.
 - **Queensgift: {effect}** — while this piece is on the board, its owner's Queen is modified as specified.
 - **Kingsgift: {effect}** — while this piece is on the board, its owner's King is modified as specified.
+- **Fragile** — at the start of its owner's turn, dies if their stones can no longer produce its cost.
+- **Royal Path** — after a tile activates on this unit, it may move to an adjacent square (again after each further tile).
 - **Shotboost: {+x}** — of a tile: a shot passing over it gains x damage. Stacks with other boosted squares on the same shot's path.
 
 ### 15.3 Ranges and direction sets
@@ -410,6 +413,8 @@ Direction sets, for Shoot and Push:
 ## 16. Presentation
 
 - **Red and blue sides, black board.** Each side's pieces are a single color: red or blue. The background and empty squares are black. **Neutral stones are gray.** **Tiles carry color** and render beneath the pieces. The goal is a cool, technical, esoteric look that matches the archaic terminology (Ipseity, Undertaking, Dogma, Captures).
+- **Pixel style** (a setting): each unit is a 32×32 abstract pixel sprite in its side's single color, with at least one line of symmetry. Tiles are plain color fields.
+- **Last turn marker.** Squares where the other player's previous turn moved or created something (units, stones, tiles) get a thin glow inside the square, over the piece and tile, so tile colors stay readable. The turn player's own changes are not marked.
 - **Creation order menu.** A subtle arrow in a corner opens a list of the player's units by ID, counting up. IDs of dead units are skipped in the list. Stone IDs are hidden by default.
 - **Captures box.** Each player's box is viewable; 1200 BC gives it no gameplay role.
 

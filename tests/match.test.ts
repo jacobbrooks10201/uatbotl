@@ -34,4 +34,20 @@ describe('LocalMatch', () => {
     const loaded = LocalMatch.fromSave(JSON.parse(JSON.stringify(m.toSave())));
     expect(JSON.stringify(loaded.state)).toBe(JSON.stringify(m.state));
   });
+
+  it('save files keep the board size', () => {
+    const m = new LocalMatch(undefined, [], { width: 12, height: 12 });
+    playRandom(m, 30);
+    const loaded = LocalMatch.fromSave(JSON.parse(JSON.stringify(m.toSave())));
+    expect([loaded.state.width, loaded.state.height]).toEqual([12, 12]);
+    expect(JSON.stringify(loaded.state)).toBe(JSON.stringify(m.state));
+  });
+
+  it('older saves without options load on the default board', () => {
+    const m = new LocalMatch();
+    playRandom(m, 10);
+    const { options: _omit, ...old } = m.toSave();
+    void _omit;
+    expect(LocalMatch.fromSave(old).state.width).toBe(16);
+  });
 });

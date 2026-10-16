@@ -1,5 +1,9 @@
 // 1200 BC — canonical age. Data only: every numeric value lives here (spec §17).
 // Source: docs/1200_BC_unit_spec.md and docs/init-spec_v0_7.md. Names are placeholders.
+//
+// Build rules: the King builds Extension units and gates. Every other unit
+// requires the gate of its own type, and only that gate builds it. A gate also
+// builds more gates of its own type.
 
 import type { AgeDef } from '../engine/types';
 
@@ -7,6 +11,11 @@ export const AGE_1200BC: AgeDef = {
   id: '1200bc',
   name: '1200 BC',
   boardSize: 16,
+  boardSizes: [8, 12, 16],
+  // Cost overrides per board size (unit or tile id -> amount). All costs are
+  // the same on every size for now; e.g. `8: { accelerator: 6 }` would make
+  // the Accelerator cost 6 M on the 8x8 board.
+  costsBySize: { 8: {}, 12: {}, 16: {} },
   stoneHp: 5,
   reinforcedStoneHp: 7,
   start: [
@@ -21,7 +30,7 @@ export const AGE_1200BC: AgeDef = {
   ],
   resourceNames: {
     E: 'Extension',
-    A: 'Anticipation',
+    P: 'Prevenience',
     D: 'Deduction',
     M: 'Multiplicity',
     I: 'Incursion',
@@ -38,7 +47,7 @@ export const AGE_1200BC: AgeDef = {
       actions: [
         { kw: 'move', range: 'range1' },
         { kw: 'attack', range: 'range1', dmg: 1 },
-        { kw: 'build', range: 'range1', scope: { any: true } },
+        { kw: 'build', range: 'range1', scope: { res: 'E', gates: true } },
         { kw: 'stonepush', dist: 1 },
       ],
       passives: [{ kw: 'extraAction', n: 1 }],
@@ -55,6 +64,7 @@ export const AGE_1200BC: AgeDef = {
         { kw: 'undertaking', range: 'queensmove' },
         { kw: 'move', range: 'queensmove' },
         { kw: 'shoot', dirs: 'eight', dmg: 1 },
+        { kw: 'raypush', dirs: 'eight' },
       ],
       passives: [],
       traits: [{ kw: 'memory' }],
@@ -66,6 +76,7 @@ export const AGE_1200BC: AgeDef = {
       code: 'E1',
       name: 'Scrap',
       glyph: '▪',
+      sym: 'Sc',
       hp: 1,
       cost: { res: 'E', n: 0 },
       actions: [],
@@ -96,34 +107,29 @@ export const AGE_1200BC: AgeDef = {
       traits: [{ kw: 'memory' }],
       note: 'Memory is intended; the wall wears down over time.',
     },
-    {
-      id: 'follower',
-      code: 'E4',
-      name: 'Ardent Follower',
-      glyph: 'AF',
-      hp: 1,
-      cost: { res: 'E', n: 3 },
-      actions: [],
-      passives: [],
-      traits: [
-        {
-          kw: 'queensgift',
-          passive: { kw: 'undertaking', range: 'queensmove' },
-          additive: false,
-          text: 'The Queen gains Undertaking {queensmove} as a passive.',
-        },
-      ],
-      note: 'Speeds up the early economy; its owner may later want to kill it.',
-    },
 
-    // --- Anticipation -----------------------------------------------------
+    // --- Prevenience -------------------------------------------------------
+    {
+      id: 'pgate',
+      code: 'P1',
+      name: 'Prevenience Gate',
+      glyph: 'PG',
+      hp: 1,
+      cost: { res: 'P', n: 2 },
+      gate: 'prevenience',
+      actions: [{ kw: 'shelter', width: 5, unit: 'scrap' }, { kw: 'build', range: 'range1', scope: { gate: 'prevenience' } }],
+      passives: [],
+      traits: [],
+      note: 'Shelter {5}: a 5×1 wall of Scrap in front. Builds only in range1.',
+    },
     {
       id: 'castler',
-      code: 'A1',
+      code: 'P2',
+      requires: 'prevenience',
       name: 'Castler',
       glyph: 'Ca',
       hp: 1,
-      cost: { res: 'A', n: 2 },
+      cost: { res: 'P', n: 2 },
       actions: [
         { kw: 'castle', dirs: 'horizontal' },
         { kw: 'move', range: 'range1' },
@@ -133,11 +139,12 @@ export const AGE_1200BC: AgeDef = {
     },
     {
       id: 'hoglouse',
-      code: 'A2',
+      code: 'P3',
+      requires: 'prevenience',
       name: 'Hoglouse',
       glyph: 'Hl',
       hp: 1,
-      cost: { res: 'A', n: 2 },
+      cost: { res: 'P', n: 2 },
       actions: [
         { kw: 'relocate', count: 1, from: 'range1', to: 'range1' },
         { kw: 'move', range: 'range2' },
@@ -147,14 +154,37 @@ export const AGE_1200BC: AgeDef = {
     },
     {
       id: 'stonedirector',
-      code: 'A3',
+      code: 'P4',
+      requires: 'prevenience',
       name: 'Stone Director',
       glyph: 'SD',
       hp: 1,
-      cost: { res: 'A', n: 3 },
+      cost: { res: 'P', n: 1 },
       actions: [{ kw: 'reallocate', count: 1, from: 'range1', to: 'range1' }],
       passives: [],
       traits: [],
+    },
+    {
+      id: 'advisor',
+      code: 'P5',
+      name: 'Advisor',
+      glyph: 'Ad',
+      hp: 1,
+      cost: { res: 'P', n: 2 },
+      requires: 'prevenience',
+      actions: [{ kw: 'selfdestruct' }],
+      passives: [],
+      traits: [
+        { kw: 'unitary' },
+        { kw: 'fragile' },
+        {
+          kw: 'kingsgift',
+          passive: { kw: 'move', range: 'range1', optional: true },
+          additive: false,
+          text: 'In the passive phase, the King may make a move.',
+        },
+      ],
+      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
     },
 
     // --- Deduction --------------------------------------------------------
@@ -166,7 +196,7 @@ export const AGE_1200BC: AgeDef = {
       hp: 1,
       cost: { res: 'D', n: 2 },
       gate: 'deduction',
-      actions: [{ kw: 'shelter' }, { kw: 'build', range: 'range2', scope: { gate: 'deduction' } }],
+      actions: [{ kw: 'shelter', unit: 'scrap' }, { kw: 'build', range: 'range3', scope: { gate: 'deduction' } }],
       passives: [],
       traits: [],
     },
@@ -216,6 +246,44 @@ export const AGE_1200BC: AgeDef = {
       traits: [],
       note: 'Moveattack only if the move lands on a tile; the attack resolves before the tile.',
     },
+    {
+      id: 'pathclearer',
+      code: 'D5',
+      name: 'Path Clearer',
+      glyph: 'PC',
+      hp: 1,
+      cost: { res: 'D', n: 3 },
+      requires: 'deduction',
+      actions: [
+        { kw: 'move', range: 'horizontal3' },
+        { kw: 'clear', line: 'vertical' },
+      ],
+      passives: [],
+      traits: [],
+      note: 'Clears every stone on its file, any distance, no line of sight needed.',
+    },
+    {
+      id: 'royalpath',
+      code: 'D6',
+      name: 'Royal Path',
+      glyph: 'RP',
+      hp: 1,
+      cost: { res: 'D', n: 2 },
+      requires: 'deduction',
+      actions: [{ kw: 'selfdestruct' }],
+      passives: [],
+      traits: [
+        { kw: 'unitary' },
+        { kw: 'fragile' },
+        {
+          kw: 'kingsgift',
+          trait: { kw: 'royalpath' },
+          additive: false,
+          text: 'Royal Path: after a tile activates on the King, he may move to an adjacent square (again after each further tile).',
+        },
+      ],
+      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
+    },
 
     // --- Multiplicity -----------------------------------------------------
     {
@@ -226,7 +294,7 @@ export const AGE_1200BC: AgeDef = {
       hp: 1,
       cost: { res: 'M', n: 2 },
       gate: 'multiplicity',
-      actions: [{ kw: 'shield' }, { kw: 'build', range: 'range2', scope: { gate: 'multiplicity' } }],
+      actions: [{ kw: 'shield', unit: 'scrap' }, { kw: 'build', range: 'range3', scope: { gate: 'multiplicity' } }],
       passives: [],
       traits: [],
     },
@@ -236,7 +304,8 @@ export const AGE_1200BC: AgeDef = {
       name: 'Building Committee',
       glyph: 'BC',
       hp: 1,
-      cost: { res: 'M', n: 5 },
+      cost: { res: 'M', n: 2 },
+      requires: 'multiplicity',
       actions: [],
       passives: [{ kw: 'buildAction', n: 1 }],
       traits: [],
@@ -249,9 +318,11 @@ export const AGE_1200BC: AgeDef = {
       hp: 1,
       cost: { res: 'M', n: 8 },
       requires: 'multiplicity',
-      actions: [],
+      actions: [{ kw: 'selfdestruct' }],
       passives: [],
       traits: [
+        { kw: 'unitary' },
+        { kw: 'fragile' },
         {
           kw: 'kingsgift',
           passive: { kw: 'extraAction', n: 1 },
@@ -259,7 +330,7 @@ export const AGE_1200BC: AgeDef = {
           text: 'The King gains an additional +1 Action passive.',
         },
       ],
-      note: 'No actions, no movement.',
+      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
     },
     {
       id: 'pathbuilder',
@@ -276,6 +347,28 @@ export const AGE_1200BC: AgeDef = {
       passives: [],
       traits: [],
     },
+    {
+      id: 'follower',
+      code: 'M5',
+      name: 'Ardent Follower',
+      glyph: 'AF',
+      hp: 1,
+      cost: { res: 'M', n: 2 },
+      requires: 'multiplicity',
+      actions: [{ kw: 'selfdestruct' }],
+      passives: [],
+      traits: [
+        { kw: 'unitary' },
+        { kw: 'fragile' },
+        {
+          kw: 'queensgift',
+          passive: { kw: 'throw', range: 'queensmove' },
+          additive: false,
+          text: 'The Queen gains a stone throw passive: each passive phase she puts a stone on an empty square along her rays, without moving.',
+        },
+      ],
+      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
+    },
 
     // --- Incursion --------------------------------------------------------
     {
@@ -286,7 +379,7 @@ export const AGE_1200BC: AgeDef = {
       hp: 1,
       cost: { res: 'I', n: 2 },
       gate: 'incursion',
-      actions: [{ kw: 'build', range: 'range3', scope: { gate: 'incursion' } }],
+      actions: [{ kw: 'build', range: 'range4', scope: { gate: 'incursion' } }],
       passives: [],
       traits: [],
       note: 'No wall action by design; less defensible on its own.',
@@ -295,14 +388,14 @@ export const AGE_1200BC: AgeDef = {
       id: 'aigate',
       code: 'I1b',
       name: 'Aggressive Incursion Gate',
-      glyph: 'AG',
+      glyph: 'XG',
       hp: 1,
       cost: { res: 'I', n: 8 },
       gate: 'incursion',
-      actions: [{ kw: 'build', range: 'forwardjump5', scope: { gate: 'incursion' } }],
+      actions: [{ kw: 'build', range: 'forwardjump6', scope: { gate: 'incursion' } }],
       passives: [],
       traits: [],
-      note: 'Counts as an Incursion Gate for unlocking. Builds onto a single square, five forward.',
+      note: 'Counts as an Incursion Gate for unlocking. Builds onto a single square, six forward.',
     },
     {
       id: 'vaulter',
@@ -329,7 +422,7 @@ export const AGE_1200BC: AgeDef = {
       requires: 'incursion',
       actions: [
         { kw: 'move', range: 'adjacent' },
-        { kw: 'attack', range: 'adjacent', dmg: 1 },
+        { kw: 'attack', range: 'adjacent', dmg: 2 },
       ],
       passives: [],
       traits: [],
@@ -360,6 +453,7 @@ export const AGE_1200BC: AgeDef = {
       actions: [
         { kw: 'move', range: 'bishopsmove' },
         { kw: 'shoot', dirs: 'diagonal', dmg: 1 },
+        { kw: 'raypush', dirs: 'diagonal' },
       ],
       passives: [],
       traits: [],
@@ -375,17 +469,61 @@ export const AGE_1200BC: AgeDef = {
       actions: [
         { kw: 'move', range: 'rooksmove' },
         { kw: 'shoot', dirs: 'orthogonal', dmg: 1 },
+        { kw: 'raypush', dirs: 'orthogonal' },
       ],
       passives: [],
       traits: [],
     },
+    {
+      id: 'soldier',
+      code: 'I7',
+      name: 'Soldier',
+      glyph: 'So',
+      hp: 1,
+      cost: { res: 'I', n: 1 },
+      requires: 'incursion',
+      actions: [],
+      passives: [
+        { kw: 'move', range: 'forward1' },
+        { kw: 'attack', range: 'forward1', dmg: 1 },
+      ],
+      traits: [],
+      note: 'Each passive phase: steps forward if the square is empty, then attacks whatever is directly in front. Never pushes.',
+    },
+    {
+      id: 'general',
+      code: 'I8',
+      name: 'General',
+      glyph: 'Gn',
+      hp: 1,
+      cost: { res: 'I', n: 2 },
+      requires: 'incursion',
+      actions: [{ kw: 'selfdestruct' }],
+      passives: [{ kw: 'bonusAttack', n: 1 }],
+      traits: [{ kw: 'unitary' }, { kw: 'fragile' }],
+      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
+    },
   ],
   tiles: [
+    {
+      id: 'todust',
+      code: 'D1t',
+      name: 'To Dust',
+      glyph: '░',
+      sym: 'TD',
+      type: 'consequence',
+      effect: { kw: 'clearStones', range: 'range1inc' },
+      cost: { res: 'D', n: 2 },
+      builtBy: 'deduction',
+      color: '#6b6258',
+      text: 'Destroys every stone in the 3×3 around the tile, its own square included.',
+    },
     {
       id: 'displace',
       code: 'D2t',
       name: 'Displace',
       glyph: '⇄',
+      sym: 'Dp',
       type: 'consequence',
       effect: { kw: 'displace' },
       color: '#1f6f5c',
@@ -396,6 +534,7 @@ export const AGE_1200BC: AgeDef = {
       code: 'D3t',
       name: 'Burst',
       glyph: '✶',
+      sym: 'Bu',
       type: 'consequence',
       effect: { kw: 'attackArea', range: 'range1inc', dmg: 1 },
       cost: { res: 'D', n: 2 },
@@ -408,6 +547,7 @@ export const AGE_1200BC: AgeDef = {
       code: 'M3t',
       name: 'Self-Execute',
       glyph: '↻',
+      sym: 'Sx',
       type: 'consequence',
       effect: { kw: 'selfExecute' },
       cost: { res: 'M', n: 8 },
@@ -421,6 +561,7 @@ export const AGE_1200BC: AgeDef = {
       code: 'M4t',
       name: 'Undertaker',
       glyph: '◇',
+      sym: 'Ut',
       type: 'consequence',
       effect: { kw: 'undertaker' },
       color: '#2a4f86',

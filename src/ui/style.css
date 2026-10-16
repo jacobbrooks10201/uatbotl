@@ -29,6 +29,16 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 13px/1.45 var(--mono);
+  /* Show text exactly as typed: no "->" or "-|" ligatures in notation and the log. */
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
+button,
+input,
+textarea {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
 }
 
 button {
@@ -65,15 +75,17 @@ button.on {
 .board-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: min(calc(100vh - 32px), calc(100vw - 440px));
+  /* Fit the board's aspect ratio (--w files × --h ranks) to the viewport. */
+  width: min(calc((100vh - 32px) * var(--w) / var(--h)), calc(100vw - 440px));
   min-width: 320px;
 }
 
 .board {
+  position: relative;
   display: grid;
-  grid-template-columns: 18px repeat(var(--n), 1fr);
-  grid-template-rows: repeat(var(--n), 1fr) 18px;
-  aspect-ratio: 1 / 1;
+  grid-template-columns: 18px repeat(var(--w), 1fr);
+  grid-template-rows: repeat(var(--h), 1fr) 18px;
+  aspect-ratio: var(--w) / var(--h);
   border: 1px solid var(--line-2);
   background: var(--bg);
   user-select: none;
@@ -211,8 +223,17 @@ button.on {
   border: 2px solid var(--target);
   opacity: 1;
 }
-.cell.last {
-  background: #15130a;
+/* Where the other player's last turn moved or created something: a thin glow
+   inside the square, drawn over tiles and pieces so their colours stay true. */
+.cell.arrived::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 236, 244, 0.75),
+    inset 0 0 6px 1px rgba(236, 236, 244, 0.35);
 }
 .cell.picked {
   background: #2a2410;
@@ -459,6 +480,63 @@ button.on {
 .drawer .close {
   float: right;
 }
+.drawer tr.group td {
+  padding-top: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom-color: var(--line-2);
+}
+
+/* ---------- New game dialog ---------- */
+
+.drawer.dialog {
+  inset: auto;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+}
+.dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.dialog .fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dialog input[type='number'] {
+  width: 4.5em;
+  margin-left: 4px;
+  background: var(--bg);
+  color: inherit;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.dialog .buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Drag to move ---------- */
+
+.piece.drag-src {
+  opacity: 0.35;
+}
+.drag-ghost {
+  position: fixed;
+  inset: auto;
+  z-index: 20;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0.9;
+}
 
 @media (max-width: 900px) {
   .layout {
@@ -472,4 +550,231 @@ button.on {
     max-width: none;
     width: 100%;
   }
+}
+
+/* ---------- Pieces on tiles ---------- */
+
+/* Classic style: the piece shrinks so the tile shows as a frame, and the tile
+   glyph sits above the piece, so both stay visible even when highlighted. */
+.cell.on-tile .tile {
+  inset: 0;
+  opacity: 0.7;
+  border-radius: 0;
+}
+.cell.on-tile .tile {
+  font-size: 0; /* its glyph moves to the badge */
+}
+.cell.on-tile .piece.unit {
+  inset: 20%;
+}
+.cell.on-tile.sel .piece,
+.cell.on-tile.forced .piece {
+  outline-offset: 0;
+}
+.tile-badge {
+  position: absolute;
+  left: 1px;
+  bottom: 0;
+  z-index: 2;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 2px;
+  color: #fff;
+  background: var(--tc);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* ---------- Pixel style ---------- */
+
+.board.pixel .tile {
+  inset: 0;
+  border-radius: 0;
+  opacity: 0.45;
+  padding: 0;
+}
+.board.pixel .tile.spent {
+  opacity: 0.18;
+}
+.piece.px {
+  inset: 10%;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.piece.px svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  display: block;
+}
+.piece.px.p0 {
+  color: var(--red);
+}
+.piece.px.p1 {
+  color: var(--blue);
+}
+.piece.px.pn {
+  color: var(--neutral);
+}
+.piece.px.stone {
+  inset: 3%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.piece.px .px-id {
+  position: absolute;
+  font-size: 9px;
+  color: #000;
+  font-weight: 700;
+}
+.roster-px {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  vertical-align: middle;
+  margin-right: 6px;
+  color: var(--red);
+}
+.roster-px svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* ---------- Unit names ---------- */
+
+.uname {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  font-size: 6.5px;
+  line-height: 1.1;
+  text-align: center;
+  /* Long names wrap onto more lines rather than being cut off. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+  pointer-events: none;
+}
+
+/* ---------- Resource highlight ---------- */
+
+.res-overlay {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  right: 0;
+  bottom: 18px;
+  width: calc(100% - 18px);
+  height: calc(100% - 18px);
+  z-index: 3;
+  pointer-events: none;
+}
+.res-overlay line {
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.9;
+}
+.res-overlay circle {
+  fill: var(--accent);
+  opacity: 0.9;
+}
+.budget .res {
+  cursor: pointer;
+}
+.budget .res.on {
+  border-color: var(--accent);
+}
+.budget .res.pinned b {
+  color: var(--accent);
+}
+
+/* ---------- Moves (notation) ---------- */
+
+.moves {
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.box h3 .h-buttons {
+  float: right;
+  display: flex;
+  gap: 4px;
+}
+.box h3 .h-buttons button {
+  font-size: 10px;
+  padding: 0 6px;
+}
+
+/* ---------- Roster tabs, settings, paste ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 12px;
+}
+.setting {
+  display: block;
+  margin: 10px 0;
+  cursor: pointer;
+}
+.setting .side-n {
+  margin-left: 22px;
+  font-size: 11px;
+}
+.dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: inherit;
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  padding: 6px;
+  font: inherit;
+  font-size: 12px;
+}
+
+/* ---------- Resource shape icons ---------- */
+
+.res-icon {
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+.res-icon .on {
+  fill: currentColor;
+}
+.res-icon .off {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.1;
+  opacity: 0.45;
+}
+
+/* ---------- Replay ---------- */
+
+.replay .controls {
+  align-items: center;
+}
+.replay .scrub {
+  width: 100%;
+  margin-top: 6px;
+}
+.replay.on {
+  border-color: var(--accent);
+}
+.replay .sub {
+  margin-top: 6px;
 }

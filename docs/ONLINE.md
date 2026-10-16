@@ -6,7 +6,8 @@ The codebase is built so online play is an addition, not a rewrite.
 
 - **Deterministic engine.** `applyInput(state, input) → state` has no randomness, no clock, no I/O. The same inputs always produce the same state (the fuzz test replays logs to check this).
 - **Serialisable everything.** `GameState`, `Input` and `Command` are plain JSON. Pending decisions are data (`state.pending`), not closures, so a state can be stored in a database or sent over a socket in the middle of a tile cascade.
-- **Input log = game.** A game is `{ age, inputs[] }` (the save-file format). Any state can be rebuilt by replaying.
+- **Input log = game.** A game is `{ age, options, inputs[] }` (the save-file format; `options` holds the board size). Any state can be rebuilt by replaying.
+- **Human-readable records.** The game notation ([`NOTATION.md`](NOTATION.md)) also describes a game completely: `parseNotation` rebuilds the input list from it. It suits game listings, sharing and chat; the wire protocol should still carry `Input`s.
 - **Decisions name their player.** `state.pending.player` says who must answer. This can be the non-turn player (e.g. a Displace of their unit). A server can route prompts without extra logic.
 - **The UI talks only to `MatchClient`** (`src/net/match.ts`). Hotseat uses `LocalMatch`. An online client implements the same interface.
 
