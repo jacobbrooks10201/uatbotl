@@ -307,7 +307,7 @@ Can't move.
 Traits:
 - Fragile: at the start of its owner's turn, dies if their stones can no longer produce its cost.
 - Unitary (one per player)
-Passives: Bonus Attack. In the passive phase, at the General's ID, its owner may take one Attack action with any of their units that has one. Optional.
+Passives: Bonus Attack. In the passive phase, at the General's ID, its owner may take one attack with any of their units: an Attack or a Shoot (anything that only deals damage counts as an attack). Optional.
 Actions: Self-destruct
 
 # Unassigned actions

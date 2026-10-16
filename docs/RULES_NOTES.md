@@ -47,7 +47,7 @@ The spec (`init-spec_v0_7.md`) and roster (`1200_BC_unit_spec.md`) leave some ca
 - **Stone throw** (Follower → Queen): a **passive**. In the passive phase she places a stone of hers on an empty square her queen's move reaches, without moving. Like all passives it is mandatory whenever possible.
 - **Advisor** (→ King): an **optional** passive Move {range1} in the passive phase. The King's owner may decline.
 - **Royal Path** (→ King): when a consequence tile activates on the King, once that tile's whole cascade has resolved, the King's owner **may** move him to an adjacent empty square. If that lands on another unspent tile, it activates and he may step again. This can happen on the opponent's turn (e.g. the King is pushed onto a tile); the King's owner decides.
-- **General** (its own passive, not a gift): at the General's ID in the passive phase, its owner may take **one Attack action** with any of their units that has one (King, Warrior, Horse). It is optional; with nothing to attack there is no prompt. Declining is written `Gn-`.
+- **General** (its own passive, not a gift): at the General's ID in the passive phase, its owner may take **one attack** with any of their units. Anything that only deals damage counts as an attack: **Attack** (King, Warrior, Horse) and **Shoot** (Queen, Slinger, Vaulter, Bishop, Rook). Moveattack does not count, since it also moves. It is optional; with nothing to attack there is no prompt. Declining is written `Gn-`.
 
 ## Fragile
 

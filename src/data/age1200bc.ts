@@ -501,7 +501,7 @@ export const AGE_1200BC: AgeDef = {
       actions: [{ kw: 'selfdestruct' }],
       passives: [{ kw: 'bonusAttack', n: 1 }],
       traits: [{ kw: 'unitary' }, { kw: 'fragile' }],
-      note: "Can't move. Fragile: dies if its owner's stones can no longer produce its cost.",
+      note: "Can't move. Bonus Attack: one Attack or Shoot by any of your units. Fragile: dies if its owner's stones can no longer produce its cost.",
     },
   ],
   tiles: [

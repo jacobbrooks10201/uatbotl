@@ -507,7 +507,7 @@ describe('roster additions', () => {
     expect(plain.active).toBe(1);
   });
 
-  it('General: in the passive phase, one optional bonus Attack with any unit that can attack', () => {
+  it('General: in the passive phase, one optional bonus attack (Attack or Shoot) with any unit', () => {
     const pieces = [
       K0,
       Q0,
@@ -515,15 +515,18 @@ describe('roster additions', () => {
       Q1,
       { owner: 0 as const, unit: 'general', at: 'h3' },
       { owner: 0 as const, unit: 'warrior', at: 'e4' },
-      { owner: 0 as const, unit: 'bishop', at: 'b4' },
+      { owner: 0 as const, unit: 'bishop', at: 'c3' },
       { owner: 1 as const, unit: 'claywall', at: 'e5' },
       ...stones(0, ['n2', 'p4']), // I2
     ];
     const s0 = scenario({ active: 1, pieces });
     const s1 = play(s0, 'p16', 0, ['o15']);
     expect(s1.pending).toMatchObject({ kind: 'action', context: 'attack', optional: true, player: 0 });
-    // Only Attack actions: the Warrior (and the King, if something were adjacent); never the Bishop's Shoot.
-    expect(legalOptions(s1).every((c) => R.unit(s1.pieces[c.unit].def!).actions[c.a].kw === 'attack')).toBe(true);
+    // Only actions that just deal damage: the Warrior's Attack, the Bishop's and Queen's Shoots; never a Move.
+    const kws = legalOptions(s1).map((c) => `${s1.pieces[c.unit].def}:${R.unit(s1.pieces[c.unit].def!).actions[c.a].kw}`);
+    expect(new Set(kws)).toEqual(new Set(['warrior:attack', 'bishop:shoot', 'queen:shoot']));
+    const shot = play(s1, 'c3', 1, ['e5']);
+    expect(formatNotation(shot)).toBe('16x16 1... Ko15 2. Bi*e5|');
     const s2 = play(s1, 'e4', 1, ['e5']);
     expect(at(s2, 'e5')?.hp).toBe(1); // Warrior hits for 2
     expect(s2.pending).toMatchObject({ kind: 'action', context: 'main' });
@@ -531,8 +534,11 @@ describe('roster additions', () => {
     const declined = applyInput(s1, { type: 'skip', player: 0 });
     expect(declined.pending).toMatchObject({ kind: 'action', context: 'main' });
     expect(formatNotation(declined)).toBe('16x16 1... Ko15 2. Gn-|');
-    // Nothing to attack: no prompt.
-    const none = scenario({ active: 1, pieces: pieces.filter((p) => !('unit' in p) || p.unit !== 'claywall') });
+    // Nothing to attack or shoot (no Queen or Bishop, whose shots could hit their own side): no prompt.
+    const none = scenario({
+      active: 1,
+      pieces: pieces.filter((p) => !('unit' in p) || !['claywall', 'bishop', 'queen'].includes(p.unit as string) || p === Q1),
+    });
     expect(play(none, 'p16', 0, ['o15']).pending).toMatchObject({ kind: 'action', context: 'main' });
   });
 

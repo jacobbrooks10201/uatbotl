@@ -23,6 +23,7 @@ import {
   buildablesFor,
   findRole,
   forwardOf,
+  isAttack,
   pieceAt,
   rulesFor,
   tileAllowedAt,
@@ -278,7 +279,7 @@ export function legalOptions(s: GameState): Command[] {
         if (!d) continue;
         actionsOf(R, s, p).forEach((spec, a) => {
           if (pend.context === 'build' && spec.kw !== 'build') return;
-          if (pend.context === 'attack' && spec.kw !== 'attack') return;
+          if (pend.context === 'attack' && !isAttack(spec)) return;
           out.push(...enumerateSpec(s, uid, a, spec, { player: pend.player }));
         });
       }

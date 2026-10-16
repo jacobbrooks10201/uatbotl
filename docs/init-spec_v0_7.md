@@ -357,7 +357,7 @@ The Incursion Gate's missing wall action makes aggressive bases structurally mor
 
 - **Move: {range}** — move to an empty square in range, by a clear path (§8.1).
 - **Jump: {range}** — move ignoring pieces in between.
-- **Attack: {range} {dmg}** — deal damage to one piece in range. Range-limited only; unlimited ray attacks are Shoots.
+- **Attack: {range} {dmg}** — deal damage to one piece in range. Range-limited only; unlimited ray attacks are Shoots. Effects that grant "an attack" accept any action that only deals damage: Attack or Shoot.
 - **Shoot: {directions} {dmg}** — fire a shot along one of the given directions (§8.3).
 - **Moveattack: {move range} {attack range} {dmg}** — move, then attack; the attack range is measured from the new square. May carry a condition.
 - **Push: {distance}** — choose an adjacent piece and one of the eight directions, and move it that many squares that way. **Pushes cascade:** any piece in the path is pushed along with it, in the same direction, for the same distance. An immovable piece (a reinforced stone) or the board edge stops the chain; the push then resolves as far as it legally can, so a push of 2 with one free square moves 1. Spent tiles do not stop a push. Every pushed piece has landed (§12.2).

@@ -620,7 +620,7 @@ function renderPrompt(s: GameState): string {
       } else if (p.context === 'build') {
         head = `${who}: Build Action — take a Build`;
       } else if (p.context === 'attack') {
-        head = `${who}: ${p.by ? unitName(p.by) : 'General'} — may take one Attack with any unit that can attack`;
+        head = `${who}: ${p.by ? unitName(p.by) : 'General'} — may take one attack (Attack or Shoot) with any unit`;
         buttons.push(`<button data-act="skip">Decline</button>`);
       } else {
         head = `${who}: Self-Execute — ${unitName(p.unit!)} may act`;
@@ -742,7 +742,7 @@ function passiveText(p: PassiveSpec): string {
     case 'throw':
       return `Stone throw {${p.range}}`;
     case 'bonusAttack':
-      return `Bonus Attack {+${p.n}} (any unit that can Attack; optional)`;
+      return `Bonus Attack {+${p.n}} (an Attack or Shoot by any unit; optional)`;
   }
 }
 

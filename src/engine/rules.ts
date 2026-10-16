@@ -88,6 +88,11 @@ export function rulesFor(ageOrState: string | GameState, opts: GameOptions = {})
 
 export const other = (p: PlayerId): PlayerId => (p === 0 ? 1 : 0);
 
+/** Actions that only deal damage count as attacks (Attack and Shoot), e.g. for the General. */
+export function isAttack(spec: ActionSpec): boolean {
+  return spec.kw === 'attack' || spec.kw === 'shoot';
+}
+
 export function pieceAt(s: GameState, sq: Sq | null): Piece | undefined {
   if (sq === null) return undefined;
   const uid = s.board[sq];
