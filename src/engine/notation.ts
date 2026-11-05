@@ -2,7 +2,8 @@
 //
 //   16x16 1. Qg4@k8 Kh15 2. K+Sch2,Kh3 Va*e9#|Wa:e7 ... 1-0
 //
-// The header is the board size. Each round is "N. red blue" ("N... blue" if
+// The header is the board size (single player: D and the run's seed, and
+// "F2" marks going down to floor 2 at the start of a turn). Each round is "N. red blue" ("N... blue" if
 // Blue moves first). A turn is its prelude (passives, bonus builds), then
 // "|", then its main actions; actions are joined by ",". Consequences attach
 // to the action that caused them.
@@ -242,9 +243,10 @@ export function resultText(s: GameState): string {
   return s.result.winner === null ? '1/2-1/2' : s.result.winner === 0 ? '1-0' : '0-1';
 }
 
-/** Full notation: board size, moves, result. */
+/** Full notation: board size (single player: D and the seed), moves, result. */
 export function formatNotation(s: GameState): string {
-  return [`${s.width}x${s.height}`, formatMoves(s), resultText(s)].filter(Boolean).join(' ');
+  const head = s.descent ? `D${s.descent.seed}` : `${s.width}x${s.height}`;
+  return [head, formatMoves(s), resultText(s)].filter(Boolean).join(' ');
 }
 
 /** One line per round, for display. */

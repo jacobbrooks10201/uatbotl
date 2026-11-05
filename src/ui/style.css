@@ -778,3 +778,139 @@ button.on {
 .replay .sub {
   margin-top: 6px;
 }
+
+/* ---- Single player: Descent ---- */
+
+/* A square this floor lacks: no grid, a faint hatch so the shape reads. */
+.cell.void {
+  cursor: default;
+  border-color: transparent;
+  background: repeating-linear-gradient(45deg, #000 0 3px, #0d0d12 3px 5px);
+}
+.cell.void:hover {
+  background: repeating-linear-gradient(45deg, #000 0 3px, #0d0d12 3px 5px);
+}
+
+/* A stone droplet waiting to be picked up. */
+.drop {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34%;
+  height: 34%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 0 50% 50% 50%;
+  background: var(--neutral);
+  box-shadow: 0 0 6px rgba(201, 179, 106, 0.6);
+  border: 1px solid var(--accent);
+  pointer-events: none;
+}
+.drop-icon {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  transform: rotate(45deg);
+  border-radius: 0 50% 50% 50%;
+  background: var(--neutral);
+  border: 1px solid var(--accent);
+}
+/* The Legendary Scroll of Utanapishtim. */
+.scroll {
+  position: absolute;
+  inset: 14%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #000;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 10px 2px rgba(201, 179, 106, 0.55);
+  pointer-events: none;
+}
+
+/* Going down a floor: the floor fades in; what fell lands from above; what was lost drops away. */
+.board.new-floor .cell:not(.void) {
+  animation: floor-in 0.6s ease-out both;
+  animation-delay: var(--fall-delay, 0ms);
+}
+.board.new-floor .cell.fell > .piece,
+.board.new-floor .cell.fell > .tile,
+.board.new-floor .cell.fell > .px {
+  animation: fall-in 0.9s cubic-bezier(0.5, 0, 0.75, 0) both;
+  animation-delay: calc(var(--fall-delay, 0ms) + 300ms);
+}
+.ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.board.new-floor .ghost {
+  animation: fall-away 1.1s ease-in both;
+  animation-delay: calc(var(--fall-delay, 0ms) + 300ms);
+}
+@keyframes floor-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fall-in {
+  from {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fall-away {
+  0% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+}
+
+.descent .stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.descent .stats > div {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 0;
+}
+.descent .stats b {
+  display: block;
+  font-size: 16px;
+}
+.descent .stats span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.descent .sub {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dialog .indent {
+  margin-left: 22px;
+}

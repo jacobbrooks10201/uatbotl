@@ -179,8 +179,10 @@ export function enumerateSpec(s: GameState, uid: string, a: number, spec: Action
     case 'undertaking': {
       const full: Command[] = [];
       const partial: Command[] = [];
+      // Single player: placing a stone costs a droplet.
+      const canPlace = !s.descent || p.owner !== 0 || s.descent.droplets > 0;
       for (const to of moveDests(R, s, p.sq, spec.range, fw)) {
-        const stones = withPieceAt(s, p, to, () => moveDests(R, s, to, spec.range, fw));
+        const stones = canPlace ? withPieceAt(s, p, to, () => moveDests(R, s, to, spec.range, fw)) : [];
         for (const st of stones) full.push({ unit: uid, a, picks: [to, st] });
         if (o.fallback) partial.push({ unit: uid, a, picks: [to, 'none'] });
       }
@@ -240,6 +242,7 @@ export function enumerateSpec(s: GameState, uid: string, a: number, spec: Action
 
     case 'throw':
       // Where a stone would go if the unit had just moved here: along its range, empty squares only.
+      if (s.descent && p.owner === 0 && s.descent.droplets <= 0) break;
       for (const q of moveDests(R, s, p.sq, spec.range, fw)) add(q);
       break;
 

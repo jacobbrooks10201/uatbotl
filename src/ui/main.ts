@@ -10,6 +10,7 @@ import {
   commandKey,
   computeBudget,
   DEFAULT_AGE,
+  DESCENT_FLOORS,
   describePiece,
   effectivePassives,
   IllegalInput,
@@ -408,7 +409,8 @@ function renderReplay(s: GameState): string {
 }
 
 function syncRules(): void {
-  R = rulesFor(match.state);
+  // The position on screen: in single player each floor has its own shape.
+  R = rulesFor(shownState());
   G = R.geo;
 }
 
@@ -419,9 +421,10 @@ function render(): void {
     <div class="layout">
       <div class="board-wrap" style="--w:${G.width};--h:${G.height}">${renderBoard(s)}${renderIds(s)}</div>
       <div class="panel">
-        <div class="box title"><h1>UATBOTL</h1><span class="age">${esc(R.age.name)} · ${G.width}×${G.height} · TURN ${s.turn}</span></div>
+        <div class="box title"><h1>UATBOTL</h1><span class="age">${s.descent ? `DESCENT · FLOOR ${s.descent.floor}/${DESCENT_FLOORS}` : `${esc(R.age.name)} · ${G.width}×${G.height}`} · TURN ${s.turn}</span></div>
         ${renderReplay(s)}
         ${viewing() ? '' : renderPrompt(s)}
+        ${renderDescent(s)}
         ${renderBudget(s)}
         ${renderSelection(s)}
         <div id="hover">${renderHover(s)}</div>
@@ -458,19 +461,47 @@ function arrivalSquares(s: GameState): Set<Sq> {
   return new Set((s.result ? s.arrivals : s.lastArrivals).filter((q) => s.board[q] !== null || s.tiles[q] !== null));
 }
 
+/** When the shown floor changed: keep the fall animation running across re-renders (negative delay). */
+let floorKey = '';
+let floorShownAt = 0;
+const FALL_MS = 1400;
+function fallAnimation(s: GameState): string {
+  const d = s.descent;
+  if (!d) return '';
+  const key = `${d.seed}:${d.floor}:${match.inputs.length}`;
+  const floorOnly = `${d.seed}:${d.floor}`;
+  if (!floorKey.startsWith(`${floorOnly}:`)) {
+    // First sight of this floor (not on page load, nor floor 1 of a new run).
+    floorShownAt = floorKey && d.floor > 1 ? Date.now() : 0;
+  }
+  floorKey = key;
+  const t = Date.now() - floorShownAt;
+  return floorShownAt && t < FALL_MS ? ` style="--fall-delay:-${t}ms"` : '';
+}
+
 function renderBoard(s: GameState): string {
   const { squares } = nextPicks();
   const arrived = arrivalSquares(s);
   const f = forced(s);
   const W = G.width;
   const H = G.height;
-  let h = `<div class="board${ui.pixel ? ' pixel' : ''}">`;
+  const d = s.descent;
+  const fall = fallAnimation(s);
+  const lostAt = new Map<Sq, Piece>();
+  if (d && fall) for (const uid of d.lost) if (s.dead[uid]) lostAt.set(s.dead[uid].sq, s.dead[uid]);
+  let h = `<div class="board${ui.pixel ? ' pixel' : ''}${fall ? ' new-floor' : ''}"${fall}>`;
   for (let row = 0; row < H; row++) {
     const r = ui.flipped ? row : H - 1 - row;
     h += `<div class="coord">${r + 1}</div>`;
     for (let col = 0; col < W; col++) {
       const fl = ui.flipped ? W - 1 - col : col;
       const sq = G.sq(fl, r);
+      if (!G.exists(sq)) {
+        // A square this floor lacks. Pieces lost in the fall drop away here.
+        const lost = lostAt.get(sq);
+        h += `<div class="cell void">${lost ? `<div class="ghost">${renderPiece(lost)}</div>` : ''}</div>`;
+        continue;
+      }
       const uid = s.board[sq];
       const piece = uid ? s.pieces[uid] : null;
       const tile = s.tiles[sq];
@@ -483,7 +514,8 @@ function renderBoard(s: GameState): string {
       if (arrived.has(sq)) cls.push('arrived');
       // Line between the two halves, drawn under the lower rank as displayed.
       const firstOf1 = Math.floor(H / 2);
-      if ((!ui.flipped && r === firstOf1) || (ui.flipped && r === firstOf1 - 1)) cls.push('half-edge');
+      if (!d && ((!ui.flipped && r === firstOf1) || (ui.flipped && r === firstOf1 - 1))) cls.push('half-edge');
+      if (fall && d!.fell.includes(sq)) cls.push('fell');
       h += `<div class="${cls.join(' ')}" data-sq="${sq}">`;
       if (tile) {
         const td = R.tile(tile.def);
@@ -492,7 +524,11 @@ function renderBoard(s: GameState): string {
         // A piece on a tile: the tile glyph stays visible above the piece.
         if (piece && !ui.pixel) h += `<div class="tile-badge" style="--tc:${td.color}">${esc(td.glyph)}</div>`;
       }
+      if (d?.drops.includes(sq)) h += `<div class="drop" title="Stone droplet: move a unit here to pick it up"></div>`;
+      if (d?.scroll === sq) h += `<div class="scroll" title="The Legendary Scroll of Utanapishtim: move a unit here to take it">S</div>`;
       if (piece) h += renderPiece(piece);
+      const lost = lostAt.get(sq);
+      if (lost) h += `<div class="ghost">${renderPiece(lost)}</div>`;
       if (piece && ui.names && piece.kind === 'unit') h += `<span class="uname">${esc(unitDef(R, piece)!.name)}</span>`;
       h += `</div>`;
     }
@@ -602,8 +638,10 @@ function renderPrompt(s: GameState): string {
       stalemate: 'by stalemate — no legal action',
       agreement: 'Draw by agreement',
       repetition: 'Draw by threefold repetition',
+      scroll: 'The Legendary Scroll of Utanapishtim is yours',
     }[r.reason];
-    const head = r.winner === null ? 'Draw' : `${sideSpan(r.winner)} wins`;
+    let head = r.winner === null ? 'Draw' : `${sideSpan(r.winner)} wins`;
+    if (s.descent) head = r.winner === 0 ? 'Victory' : `The descent ends on floor ${s.descent.floor}`;
     return `<div class="box prompt"><div class="result">${head}</div><div class="sub">${esc(why)}</div>
       <div class="buttons"><button data-act="new">New game</button><button data-act="undo">Undo last input</button></div></div>`;
   }
@@ -672,19 +710,41 @@ function resIcon(r: Resource): string {
   return `<svg class="res-icon" viewBox="0 0 3 3" aria-hidden="true">${body}</svg>`;
 }
 
+/** Single player status: floor, enemies left, droplets held. */
+function renderDescent(s: GameState): string {
+  const d = s.descent;
+  if (!d) return '';
+  const enemies = Object.values(s.pieces).filter((p) => p.owner === 1 && p.kind === 'unit').length;
+  const goal =
+    d.floor === DESCENT_FLOORS
+      ? d.scroll !== null
+        ? 'The Legendary Scroll of Utanapishtim lies on this floor (S). Move a unit onto it.'
+        : ''
+      : enemies
+        ? 'Kill every enemy to go down to the next floor.'
+        : 'Floor cleared: you go down at the start of your next turn.';
+  return `<div class="box descent">
+    <div class="stats"><div><b>${d.floor}</b><span>floor of ${DESCENT_FLOORS}</span></div>
+    <div><b>${enemies}</b><span>${sideSpan(1, 'enemies')} left</span></div>
+    <div><b>${d.droplets}</b><span><i class="drop-icon"></i>droplets held</span></div>
+    <div><b>${d.drops.length}</b><span>droplets here</span></div></div>
+    <div class="sub">${esc(goal)} Placing a stone (Undertaking) costs a droplet; pick droplets up by moving a unit onto them. Your budget is set when a floor starts; new stones add what they produce.</div>
+  </div>`;
+}
+
 function renderBudget(s: GameState): string {
   const b = s.result ? computeBudget(R, s, s.active) : budgetFor(s, s.active);
   const cells = RESOURCES.map(
     (r) =>
       `<div class="res${(ui.resHover ?? ui.resPin) === r ? ' on' : ''}${ui.resPin === r ? ' pinned' : ''}" data-res="${r}" title="Hover to show ${esc(R.age.resourceNames[r])} on the board; click to pin"><b>${b[r]}</b><span>${resIcon(r)}${esc(R.age.resourceNames[r])}</span></div>`,
   ).join('');
-  const proj = ([0, 1] as PlayerId[])
+  const proj = ((s.descent ? [0] : [0, 1]) as PlayerId[])
     .map((pl) => {
       const nb = computeBudget(R, s, pl);
       return `${sideSpan(pl)} ${RESOURCES.map((r) => `${r}${nb[r]}`).join(' ')}`;
     })
     .join(' &nbsp;·&nbsp; ');
-  return `<div class="box"><h3>Budget — ${sideSpan(s.active)} (remaining this turn)</h3><div class="budget">${cells}</div>
+  return `<div class="box"><h3>Budget — ${sideSpan(s.active)} (remaining this ${s.descent ? 'floor' : 'turn'})</h3><div class="budget">${cells}</div>
     <div class="proj">From current stones: ${proj}</div></div>`;
 }
 
@@ -805,14 +865,14 @@ function renderControls(s: GameState): string {
   return `<div class="box"><div class="controls">
     <button data-act="undo" ${match.canUndo() ? '' : 'disabled'} title="Ctrl+Z">Undo</button>
     <button data-act="flip">Flip board</button>
-    <button data-act="autoflip" class="${ui.autoFlip ? 'on' : ''}">Auto-flip</button>
+    ${s.descent ? '' : `<button data-act="autoflip" class="${ui.autoFlip ? 'on' : ''}">Auto-flip</button>`}
     <button data-act="roster">Roster</button>
     <button data-act="settings">Settings</button>
     <button data-act="save">Save</button>
     <button data-act="load">Load</button>
     <button data-act="new">New game</button>
-    <button data-act="offer-draw" ${live && s.drawOffer === null ? '' : 'disabled'}>Offer draw (${sideName(actor)})</button>
-    <button data-act="resign" ${live ? '' : 'disabled'}>Resign (${sideName(actor)})</button>
+    ${s.descent ? `<button data-act="resign" ${live ? '' : 'disabled'}>Give up</button>` : `<button data-act="offer-draw" ${live && s.drawOffer === null ? '' : 'disabled'}>Offer draw (${sideName(actor)})</button>
+    <button data-act="resign" ${live ? '' : 'disabled'}>Resign (${sideName(actor)})</button>`}
   </div></div>`;
 }
 
@@ -822,6 +882,13 @@ function renderCaptures(s: GameState): string {
     const names = list.map((p) => sideSpan(p.owner, p.kind === 'stone' ? 'stone' : unitDef(R, p)!.name)).join(', ');
     return `<div><div>${sideSpan(pl)} Captures · ${list.length}</div><div class="list">${names || '—'}</div></div>`;
   };
+  if (s.descent) {
+    // Single player: one graveyard for the whole run, enemies and your own losses alike.
+    const all = Object.values(s.dead);
+    const count = (owner: PlayerId) => all.filter((p) => p.owner === owner).length;
+    const names = all.map((p) => sideSpan(p.owner, p.kind === 'stone' ? 'stone' : unitDef(R, p)!.name)).join(', ');
+    return `<div class="box"><h3>Graveyard · ${all.length}</h3><div class="side-n">${sideSpan(1, 'Enemies')} ${count(1)} · ${sideSpan(0, 'yours')} ${count(0)} · neutral ${all.length - count(0) - count(1)}</div><div class="list">${names || '—'}</div></div>`;
+  }
   return `<div class="box"><h3>Captures</h3><div class="captures">${col(0)}${col(1)}</div></div>`;
 }
 
@@ -935,7 +1002,7 @@ function renderMoves(s: GameState): string {
   const rounds = notationRounds(s);
   const res = resultText(s);
   const rows = rounds.map((r) => `<div>${esc(r)}</div>`).join('') + (res ? `<div class="turn">${res}</div>` : '');
-  return `<div class="box"><h3>Moves <span class="side-n">${G.width}x${G.height}</span>
+  return `<div class="box"><h3>Moves <span class="side-n">${s.descent ? `D${s.descent.seed}` : `${G.width}x${G.height}`}</span>
     <span class="h-buttons"><button data-act="copy-moves" title="Copy the full notation">Copy</button><button data-act="paste-moves" title="Load a game from notation">Paste…</button></span></h3>
     <div class="moves">${rows || '<div class="side-n">—</div>'}</div></div>`;
 }
@@ -975,11 +1042,16 @@ function renderNewGame(): string {
   const current = R.age.boardSizes.includes(s.width) ? s.width : R.age.boardSize;
   const size = (n: number) =>
     `<label><input type="radio" name="size" value="${n}" ${n === current ? 'checked' : ''}> ${n}x${n}</label>`;
+  const solo = !!s.descent;
   return `<div class="drawer dialog"><button class="close" data-act="new-cancel">Close</button>
     <h3>New game</h3>
     <form id="new-game">
-      <div class="fields">Board ${R.age.boardSizes.map(size).join('')}</div>
-      <div class="side-n">The Kings and Queens keep their starting offsets: centred on the files, on each side's back rank. Costs can differ by board size (see the Roster).</div>
+      <div class="fields"><label><input type="radio" name="mode" value="versus" ${solo ? '' : 'checked'}> Two players (hotseat)</label></div>
+      <div class="fields indent">Board ${R.age.boardSizes.map(size).join('')}</div>
+      <div class="side-n indent">The Kings and Queens keep their starting offsets: centred on the files, on each side's back rank. Costs can differ by board size (see the Roster).</div>
+      <div class="fields"><label><input type="radio" name="mode" value="descent" ${solo ? 'checked' : ''}> Single player: Descent</label></div>
+      <div class="fields indent"><label>Seed <input type="number" name="seed" placeholder="random" step="1"></label></div>
+      <div class="side-n indent">Start with your King and Queen and fight down ${DESCENT_FLOORS} floors of random shape. Kill every enemy to go down; everything falls to the same square of the next floor, and whatever lands where the floor is missing dies (your King too). The Legendary Scroll of Utanapishtim waits on floor ${DESCENT_FLOORS}. The same seed gives the same run.</div>
       ${ui.error && ui.newGame ? `<div class="error">${esc(ui.error)}</div>` : ''}
       <div class="buttons"><button type="submit">Start${s.result ? '' : ' (abandons this game)'}</button></div>
     </form></div>`;
@@ -1149,6 +1221,17 @@ app.addEventListener('submit', (ev) => {
   if (form.id !== 'new-game') return;
   ev.preventDefault();
   const data = new FormData(form);
+  if (data.get('mode') === 'descent') {
+    const seedText = String(data.get('seed') ?? '').trim();
+    const seed = seedText ? Math.trunc(Number(seedText)) : Math.floor(Math.random() * 1_000_000);
+    if (!Number.isFinite(seed)) {
+      ui.error = 'The seed must be a whole number';
+      render();
+      return;
+    }
+    startNewGame({ mode: 'descent', seed });
+    return;
+  }
   const n = Number(data.get('size'));
   startNewGame({ width: n, height: n });
 });

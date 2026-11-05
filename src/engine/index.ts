@@ -10,6 +10,7 @@ export const DEFAULT_AGE = AGE_1200BC.id;
 export * from './types';
 export { actionLabel, applyInput, applyInputMut, checkOptions, decider, IllegalInput, newGame, newScenario, parseNotation, positionKey, specOf } from './engine';
 export type { ParsedGame, Scenario } from './engine';
+export { DESCENT_FLOORS, DESCENT_SIZE } from './descent';
 export { formatNotation, notationRounds, resultText, type NoteTurn } from './notation';
 export { commandKey, enumerateAction, legalOptions } from './options';
 export {

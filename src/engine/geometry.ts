@@ -109,14 +109,27 @@ function parseRangeUncached(spec: RangeSpec): Range {
   throw new Error(`Unknown range spec: ${spec}`);
 }
 
-/** Board width × height. Width is files (a, b, …), height is ranks (1, 2, …). */
+/**
+ * Board width × height. Width is files (a, b, …), height is ranks (1, 2, …).
+ * An optional `mask` ('1' open, '0' missing, one character per square) gives
+ * the board an irregular shape: missing squares are off the board, exactly
+ * like the squares beyond its edge.
+ */
 export class Geo {
   readonly squares: number;
+  private readonly open: boolean[] | null;
   constructor(
     readonly width: number,
     readonly height: number,
+    mask?: string,
   ) {
     this.squares = width * height;
+    this.open = mask ? [...mask].map((c) => c === '1') : null;
+  }
+
+  /** Whether a square exists on this board (always, without a mask). */
+  exists(s: Sq): boolean {
+    return !this.open || this.open[s];
   }
 
   sq(f: number, r: number): Sq {
@@ -129,7 +142,7 @@ export class Geo {
     return Math.floor(s / this.width);
   }
   inBounds(f: number, r: number): boolean {
-    return f >= 0 && r >= 0 && f < this.width && r < this.height;
+    return f >= 0 && r >= 0 && f < this.width && r < this.height && (!this.open || this.open[r * this.width + f]);
   }
   /** Square offset by a vector, or null if off the board. */
   step(s: Sq, v: Vec, times = 1): Sq | null {

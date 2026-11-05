@@ -8,7 +8,7 @@ A chess-like record of a whole game in plain, typable ASCII. It uses no brackets
 
 ## Layout
 
-- **Header:** the board size, `WIDTHxHEIGHT`: `8x8`, `12x12` or `16x16`.
+- **Header:** the board size, `WIDTHxHEIGHT`: `8x8`, `12x12` or `16x16`. A single player run (Descent) starts with `D` and its seed instead, e.g. `D513009`.
 - **Rounds:** `N. red blue`. A game that starts with Blue begins `1... blue`.
 - **A turn** is its **prelude** (Fragile deaths, then passives such as a Vaulter's shot, a Soldier's step, the Queen's stone throw, the King's move from an Advisor, the General's bonus Attack, and Building Committee builds), then `|`, then its **main actions**. Without a prelude, there is no `|`.
 - **Actions** within a phase are separated by `,`.
@@ -49,6 +49,7 @@ These attach directly to the action that caused them, in the order they happen. 
 | `##f2` | A King dies (the game ends) |
 | `d6` | After `!Dp`: where the displaced piece goes (its owner's choice) |
 | `-` | A Self-Execute action is declined |
+| `F2` | Single player: the run goes down to floor 2 (start of Red's turn); deaths in the fall follow, e.g. `F3#e9##i1` |
 | `!SxWae6` | A Self-Execute, Undertaker or Royal Path action follows its tile directly (`Ke5!BuKe6`, or `Ke5!BuK-` if declined) |
 
 Examples: `PC&#d12#d3` (Path Clearer clears its file; the stones on d12 and d3 are destroyed, in resolution order). `Soe5,So:e6#` (a Soldier's prelude: steps to e5, attacks e6, which dies). `Ac~#h3` (Accelerator on h3 self-destructs). `Q*c9##` (Queen shoots the King on c9, which dies). `TtBue6!Bu##f7` (Trapthrower lays Burst on e6, which activates and kills the pieces on e6 and f7). `Tbe5!Dpd6` (Trailblazer lands on Displace and is moved to d6).

@@ -44,6 +44,18 @@ You can send `dist/index.html` to playtesters as-is. Open that file (or an archi
 - **Flip board** / **Auto-flip** change orientation for hotseat play.
 - Some choices belong to the other player, e.g. where their unit is displaced. The prompt always names the side that must decide.
 
+### Single player: Descent
+
+**New game → Single player: Descent** (leave the seed empty for a random run, or enter one to replay a run's floors).
+
+- You are Red and start with your King and Queen on the home row. Each floor is a random shape inside a 16x16 area (bands with soft and hard bends, rooms and corridors, caves, blocked islands), always joined to the 12-square home row c1–n1. Hatched squares don't exist.
+- Each floor brings a wave of Blue enemies, bigger and tougher the deeper you go (Soldiers and Warriors first; Vaulters from floor 3, Horses from 5, Bishops from 8, Rooks from 12). They appear anywhere, mostly in the middle and the far end. Blue takes one action per turn: it attacks one of your units if any enemy can (the King first), otherwise it moves a random enemy as close to your King as it can get. Its passives (Soldiers, Vaulters) work as usual.
+- **Kill every enemy to go down.** Everything you have (units, stones, tiles) falls to the same square of the next floor. Anything over a square the new floor lacks dies, **your King included** (the run ends). Anything that lands on a new enemy is destroyed together with it.
+- **Stone droplets:** 1–3 per floor. Move any unit onto one to pick it up; unspent droplets carry over. Every stone you place (Undertaking, or the Queen's stone throw) costs one.
+- **Budget:** set from your stones when a floor starts and spent across the whole floor (it does not refresh each turn). A stone you place adds what that placement produces.
+- The **graveyard** counts every death of the run. The **Legendary Scroll of Utanapishtim** lies on floor 25: move a unit onto it to win.
+- Undo, replay, save/load and notation all work as in a two-player game; a run's notation starts with `D` and its seed.
+
 ### Sample game
 
 [`games/every-unit.txt`](games/every-unit.txt) is a generated game in which every unit and tile is built, and most units then act. To watch it: open the game, **Moves → Paste…**, paste the file's text, **Load and replay from the start**, then press **Play** or step with the arrow keys. A test checks that it loads and replays to the identical game. Regenerate it with `VITE_REGEN=1 npx vitest run tests/tools/regenerate.test.ts`.
@@ -66,6 +78,7 @@ src/engine/             Pure rules engine — no DOM, no I/O, deterministic
   rules.ts              Registry, economy templates, gifts, damage, mutations
   options.ts            Enumerates every legal fully-specified choice
   engine.ts             Task interpreter: turn phases, passives, tile cascades, game end, notation parser
+  descent.ts            Single player: floor shapes, waves, the fall, droplets, the enemy's choices
   notation.ts           Game notation: recorded as the game is played, formatted, option texts
 src/net/match.ts        MatchClient interface + LocalMatch (hotseat, undo, save files)
 src/ui/main.ts          Vanilla TypeScript DOM client

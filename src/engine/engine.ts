@@ -37,6 +37,8 @@ import {
 import { attackTargets, planPush, rangeSquares, shotDamage } from './targeting';
 import type { ActionSpec, Command, GameOptions, GameState, Input, Landing, PassiveSpec, Pending, PlayerId, Sq } from './types';
 
+import { aiDecide, isAiTurn, newDescentState, pickUp, startFloor, stonePlaced, DESCENT_FLOORS, DESCENT_SIZE } from './descent';
+
 export { commandKey, legalOptions } from './options';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ export { commandKey, legalOptions } from './options';
 // ---------------------------------------------------------------------------
 
 export function newGame(ageId: string, opts: GameOptions = {}): GameState {
+  if (opts.mode === 'descent') return newDescent(ageId, opts);
   const R = rulesFor(ageId, checkOptions(ageId, opts));
   const base = rulesFor(ageId).geo;
   const g = R.geo;
@@ -65,9 +68,24 @@ export function newGame(ageId: string, opts: GameOptions = {}): GameState {
   );
 }
 
+/**
+ * Single player (Descent): Red's King and Queen on their usual squares, the
+ * first floor's shape and wave around them. Red moves first.
+ */
+function newDescent(ageId: string, opts: GameOptions): GameState {
+  const seed = opts.seed;
+  if (!Number.isInteger(seed)) throw new Error('A single player game needs a whole-number seed');
+  const R = rulesFor(ageId, { width: DESCENT_SIZE, height: DESCENT_SIZE });
+  const s = buildScenario(ageId, { pieces: R.age.start[0].map(({ unit, at }) => ({ owner: 0, unit, at })) }, opts);
+  s.descent = newDescentState(seed!);
+  run(startFloor(s, true), s);
+  return s;
+}
+
 /** Validate game options; returns them with the age defaults filled in. */
-export function checkOptions(ageId: string, opts: GameOptions): Required<GameOptions> {
+export function checkOptions(ageId: string, opts: GameOptions): { width: number; height: number } {
   const age = rulesFor(ageId).age;
+  if (opts.mode === 'descent') return { width: DESCENT_SIZE, height: DESCENT_SIZE };
   const width = opts.width ?? age.boardSize;
   const height = opts.height ?? age.boardSize;
   if (width !== height || !age.boardSizes.includes(width))
@@ -85,6 +103,13 @@ export interface Scenario {
 }
 
 export function newScenario(ageId: string, sc: Scenario, opts: GameOptions = {}): GameState {
+  const s = buildScenario(ageId, sc, opts);
+  run(rulesFor(s), s);
+  return s;
+}
+
+/** A scenario's state, before its first turn starts. */
+function buildScenario(ageId: string, sc: Scenario, opts: GameOptions): GameState {
   const R = rulesFor(ageId, checkOptions(ageId, opts));
   const n = R.geo.squares;
   const s: GameState = {
@@ -129,7 +154,6 @@ export function newScenario(ageId: string, sc: Scenario, opts: GameOptions = {})
   for (const t of sc.tiles ?? []) s.tiles[R.geo.parse(t.at)] = { def: t.tile, spent: false };
   s.landings = []; // setup placement is not a landing
   s.arrivals = [];
-  run(R, s);
   return s;
 }
 
@@ -150,6 +174,9 @@ export function applyInput(state: GameState, input: Input): GameState {
 export function applyInputMut(s: GameState, input: Input): void {
   const R = rulesFor(s);
   if (s.result) throw new IllegalInput('The game is over');
+  if (s.descent && input.player === 1) throw new IllegalInput('Blue is played by the game in single player');
+  if (s.descent && (input.type === 'offerDraw' || input.type === 'acceptDraw' || input.type === 'declineDraw'))
+    throw new IllegalInput('There are no draws in single player');
   switch (input.type) {
     case 'resign':
       log(s, input.player, `${side(input.player)} resigns`);
@@ -175,19 +202,7 @@ export function applyInputMut(s: GameState, input: Input): void {
       const p = s.pending;
       if (!p || p.player !== input.player) throw new IllegalInput('Not your decision');
       if (!((p.kind === 'action' || p.kind === 'effect') && p.optional)) throw new IllegalInput('This decision cannot be skipped');
-      if (p.kind === 'effect') {
-        // A declined optional effect (Advisor's move, Royal Path) is written as the unit's code and "-".
-        log(s, input.player, `${side(input.player)} declines ${p.source}`);
-        noteToken(s, `${symOf(R, s.pieces[p.unit].def!)}-`, '', p.source !== 'passive');
-      } else if (p.context === 'attack' && p.by) {
-        // A declined bonus Attack is written as the granting unit's code and "-" (Gn-).
-        log(s, input.player, `${side(input.player)} declines the bonus Attack`);
-        noteToken(s, `${symOf(R, s.pieces[p.by]?.def ?? 'general')}-`, '', false);
-      } else {
-        log(s, input.player, `${side(input.player)} declines the bonus action`);
-        noteAppend(s, '-');
-      }
-      s.pending = null;
+      skipPending(R, s, input.player);
       run(R, s);
       return;
     }
@@ -203,6 +218,24 @@ export function applyInputMut(s: GameState, input: Input): void {
       return;
     }
   }
+}
+
+/** Decline the pending optional decision. */
+function skipPending(R: Rules, s: GameState, player: PlayerId): void {
+  const p = s.pending!;
+  if (p.kind === 'effect') {
+    // A declined optional effect (Advisor's move, Royal Path) is written as the unit's code and "-".
+    log(s, player, `${side(player)} declines ${p.source}`);
+    noteToken(s, `${symOf(R, s.pieces[p.unit].def!)}-`, '', p.source !== 'passive');
+  } else if (p.kind === 'action' && p.context === 'attack' && p.by) {
+    // A declined bonus Attack is written as the granting unit's code and "-" (Gn-).
+    log(s, player, `${side(player)} declines the bonus Attack`);
+    noteToken(s, `${symOf(R, s.pieces[p.by]?.def ?? 'general')}-`, '', false);
+  } else {
+    log(s, player, `${side(player)} declines the bonus action`);
+    noteAppend(s, '-');
+  }
+  s.pending = null;
 }
 
 /** Player the UI should ask right now, or null. */
@@ -277,24 +310,57 @@ function request(R: Rules, s: GameState, p: Pending): void {
 function run(R: Rules, s: GameState): void {
   flushLandings(s);
   let guard = 0;
-  while (!s.pending && !s.result && s.tasks.length) {
+  for (;;) {
     if (++guard > 100_000) throw new Error('Engine loop guard tripped');
+    if (s.result) break;
+    if (s.pending) {
+      // Single player: the engine answers Blue's decisions itself.
+      if (!isAiTurn(s)) break;
+      const opts = legalOptions(s);
+      const choice = aiDecide(R, s, opts);
+      if (choice.type === 'choose') resolveChoice(R, s, choice.cmd, opts);
+      else if (choice.type === 'skip') skipPending(R, s, 1);
+      else {
+        // Nothing worth doing: Blue passes its action.
+        log(s, 1, 'Blue waits');
+        s.pending = null;
+        s.actionsLeft = 0;
+      }
+      flushLandings(s);
+      continue;
+    }
+    if (!s.tasks.length) break;
     const task = s.tasks[s.tasks.length - 1];
     switch (task.t) {
       case 'startTurn': {
         s.tasks.pop();
-        const key = positionKey(s);
-        s.repetition[key] = (s.repetition[key] ?? 0) + 1;
-        if (s.repetition[key] >= 3) {
-          log(s, 'n', 'Third repetition of the position: draw');
-          endGame(s, null, 'repetition');
-          return;
+        const d = s.descent;
+        let descend = false;
+        if (d && !unitsOf(s, 1).length) {
+          // Floor cleared: Blue has no turn; Red goes down (except on the last floor).
+          s.active = 0;
+          if (d.floor < DESCENT_FLOORS) descend = true;
+        }
+        if (!d) {
+          const key = positionKey(s);
+          s.repetition[key] = (s.repetition[key] ?? 0) + 1;
+          if (s.repetition[key] >= 3) {
+            log(s, 'n', 'Third repetition of the position: draw');
+            endGame(s, null, 'repetition');
+            return;
+          }
         }
         noteTurnStart(s);
         s.lastArrivals = s.arrivals;
         s.arrivals = [];
-        s.budget = computeBudget(R, s, s.active);
-        s.actionsLeft = 0;
+        if (descend) {
+          d!.floor++;
+          R = startFloor(s, false);
+          if (s.result) return;
+        }
+        // Single player: Red's budget is set when a floor starts and lasts the whole floor.
+        s.budget = d ? (s.active === 0 ? { ...d.budget } : emptyBudget()) : computeBudget(R, s, s.active);
+        s.actionsLeft = d && s.active === 1 ? 1 : 0;
         s.actionTaken = false;
         log(s, s.active, `-- Turn ${s.turn}: ${side(s.active)} -- budget ${budgetText(s.budget)}`);
         checkFragile(R, s);
@@ -334,7 +400,7 @@ function run(R: Rules, s: GameState): void {
         s.pending = { kind: 'action', player: s.active, context: 'main', optional: false };
         if (legalOptions(s).length === 0) {
           s.pending = null;
-          if (!s.actionTaken) {
+          if (!s.actionTaken && !(s.descent && s.active === 1)) {
             log(s, s.active, `${side(s.active)} has no legal action`);
             endGame(s, other(s.active), 'stalemate');
             return;
@@ -383,6 +449,7 @@ function run(R: Rules, s: GameState): void {
           if (!memory) p.hp = p.maxHp;
         }
         for (const t of s.tiles) if (t) t.spent = false;
+        if (s.descent && s.active === 0) s.descent.budget = { ...s.budget };
         s.budget = emptyBudget();
         s.active = other(s.active);
         s.turn++;
@@ -400,10 +467,12 @@ function run(R: Rules, s: GameState): void {
  * so a fallen unit grants nothing this turn.
  */
 function checkFragile(R: Rules, s: GameState): void {
+  // Single player keeps the budget across turns, so Fragile checks what the stones produce.
+  const can = s.descent ? computeBudget(R, s, s.active) : s.budget;
   for (const p of unitsOf(s, s.active)) {
     const d = unitDef(R, p)!;
     if (!d.cost || !d.traits.some((t) => t.kw === 'fragile')) continue;
-    if (s.budget[d.cost.res] < d.cost.n) {
+    if (can[d.cost.res] < d.cost.n) {
       destroy(R, s, p.uid, s.active, `crumbles: its owner can no longer produce ${d.cost.n}${d.cost.res}`);
       if (s.result) return;
     }
@@ -424,7 +493,8 @@ function runPassive(R: Rules, s: GameState, uid: string, spec: PassiveSpec): voi
       for (let i = 0; i < spec.n; i++) s.tasks.push({ t: 'bonusAttack', player, by: uid });
       break;
     case 'throw':
-      request(R, s, { kind: 'effect', player, unit: uid, spec, fallback: false, source: 'passive' });
+      // In single player a thrown stone costs a droplet, so the throw may be declined.
+      request(R, s, { kind: 'effect', player, unit: uid, spec, fallback: false, source: 'passive', optional: !!s.descent });
       break;
     case 'shoot':
       request(R, s, { kind: 'effect', player, unit: uid, spec, fallback: false, source: 'passive' });
@@ -463,6 +533,10 @@ function clearStones(R: Rules, s: GameState, squares: Sq[], by: PlayerId): boole
 function resolveLanding(R: Rules, s: GameState, l: Landing): void {
   const tile = s.tiles[l.sq];
   const p = s.pieces[l.uid];
+  if (s.descent && p && p.sq === l.sq && pickUp(R, s, p)) {
+    endGame(s, 0, 'scroll');
+    return;
+  }
   // The tile only activates if the piece is still standing on it (interpretation, see docs/RULES_NOTES.md).
   if (!tile || tile.spent || !p || p.sq !== l.sq) return;
   const def = R.tile(tile.def);
@@ -624,8 +698,10 @@ function applySpec(R: Rules, s: GameState, cmd: Command, spec: ActionSpec, playe
       log(s, by, `${who} undertakes ${name(p.sq)}->${name(sqA)}`);
       movePiece(s, p.uid, sqA);
       if (cmd.picks[1] !== 'none') {
+        const before = s.descent && computeBudget(R, s, 0);
         const st = createStone(R, s, by, sqB);
         log(s, by, `${describePiece(R, st)} placed at ${name(sqB)}`);
+        if (before && by === 0) stonePlaced(R, s, before);
       }
       break;
     }
@@ -687,8 +763,10 @@ function applySpec(R: Rules, s: GameState, cmd: Command, spec: ActionSpec, playe
       break;
 
     case 'throw': {
+      const before = s.descent && computeBudget(R, s, 0);
       const st = createStone(R, s, by, sqA);
       log(s, by, `${who} throws ${describePiece(R, st)} to ${name(sqA)}`);
+      if (before && by === 0) stonePlaced(R, s, before);
       break;
     }
 
@@ -722,9 +800,10 @@ export interface ParsedGame {
  */
 export function parseNotation(text: string, ageId: string): ParsedGame {
   let src = text.trim().replace(/\s+/g, ' ');
-  const head = /^(\d+)x(\d+)(?: |$)/.exec(src);
-  if (!head) throw new Error('Notation must start with the board size, e.g. 16x16');
-  const options: GameOptions = { width: Number(head[1]), height: Number(head[2]) };
+  const head = /^(?:(\d+)x(\d+)|D(-?\d+))(?: |$)/.exec(src);
+  if (!head) throw new Error('Notation must start with the board size (e.g. 16x16), or D and the seed for single player');
+  const options: GameOptions =
+    head[3] !== undefined ? { mode: 'descent', seed: Number(head[3]) } : { width: Number(head[1]), height: Number(head[2]) };
   src = src.slice(head[0].length);
   const res = / ?(1-0|0-1|1\/2-1\/2)$/.exec(src);
   const result = res?.[1];

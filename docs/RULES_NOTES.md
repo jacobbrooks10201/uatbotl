@@ -97,6 +97,18 @@ The spec (`init-spec_v0_7.md`) and roster (`1200_BC_unit_spec.md`) leave some ca
 - Forced choices that auto-resolve still appear in the notation, but are not inputs.
 - Draw offers and declines do not appear; an agreed draw appears as the result `1/2-1/2`, a resignation as `1-0` / `0-1` with no King death.
 
+## Single player (Descent)
+
+- **Board:** 16x16 with a mask of missing squares (`state.mask`). A missing square is off the board: moves, rays, pushes, builds and areas treat it like the edge (knights still jump over it). Shapes always keep the home row c1–n1 (nothing else on rank 1), keep c2–n3 open, never cut islands into the bottom middle (files d–m, ranks 1–6), and are fully joined orthogonally to the home row.
+- **Randomness:** one seeded generator in `state.descent.rng` makes the floors, waves, droplet squares and every enemy choice, so a run is its seed plus your inputs.
+- **Turns:** Red moves first. Blue's turn: its passives, then exactly one action. Blue's decisions are made by the engine and are never inputs; Blue never stalemates (with nothing useful to do it waits).
+- **Enemy choice:** any action that only deals damage (Attack, Shoot) on a Red *unit*, the King first; otherwise a random enemy that can get closer to the King (king-step distance over the floor's squares, ignoring pieces) moves to its closest reachable square. If none can get closer, Blue waits. Optional decisions are declined unless they hit Red.
+- **Going down:** checked at the start of each turn. With no Blue units left (and floor < 25), the floor changes and that turn is Red's (Blue's empty turn is skipped). The notation writes `F2` (floor 2) at the start of that turn, followed by any deaths in the fall. Order: new shape, the wave appears, the pieces fall (missing square: dies, credited to Blue; onto an enemy: both die), tiles fall (missing square: removed; spent tiles reset), droplets are placed, the budget is set. The King's fate is settled last, so a fatal fall still completes the floor change.
+- **First floor:** the wave avoids the King and Queen and the first four ranks; nothing falls.
+- **Budget:** Red's budget is set from its stones when a floor starts and carried from turn to turn (`state.descent.budget`). Placing a stone adds, per resource, how much the stones produce after the placement minus before (never negative). Fragile checks what the stones produce, not the remaining budget.
+- **Droplets:** without one, Undertaking has no stone options (it is offered only where its fallback applies, e.g. the Undertaker tile), and the Queen's stone throw (Ardent Follower) is skipped; with one, the throw is optional. Pick-up happens on landing, by Red units only (any way of landing, including a push or a build).
+- **No draws** and no repetition rule in single player. The Scroll is a pick-up on floor 25 (a Red unit landing on it wins, `1-0`).
+
 ## Repetition
 
 The start-of-turn position key contains: side to move, and each square's piece (owner + unit type, or stone / reinforced stone, plus its HP when below full) and tile type. **HP counts:** a cycle that drains a Memory unit (King, Queen, Clay Wall) by 1 each time never repeats. Pieces without Memory are always at full HP at the start of a turn, so only Memory damage matters. IDs are ignored (§5). The third occurrence is a draw.

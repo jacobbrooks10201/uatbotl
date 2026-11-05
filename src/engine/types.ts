@@ -282,7 +282,7 @@ export type Input =
 
 export interface GameResult {
   winner: PlayerId | null;
-  reason: 'ipseity' | 'resignation' | 'stalemate' | 'agreement' | 'repetition';
+  reason: 'ipseity' | 'resignation' | 'stalemate' | 'agreement' | 'repetition' | 'scroll';
 }
 
 export interface LogEntry {
@@ -295,6 +295,31 @@ export interface LogEntry {
 export interface GameOptions {
   width?: number;
   height?: number;
+  /** 'versus' (default): two players. 'descent': single player against waves, floor by floor. */
+  mode?: 'versus' | 'descent';
+  /** Descent: seed for the floors and the enemy's choices. */
+  seed?: number;
+}
+
+/** Single player state (Descent). The player is Red; Blue is the enemy, played by the engine. */
+export interface DescentState {
+  seed: number;
+  /** Random generator state (mulberry32). */
+  rng: number;
+  /** Current floor, from 1. */
+  floor: number;
+  /** Stone droplets held: each one pays for placing a stone. */
+  droplets: number;
+  /** Squares holding a droplet to pick up. */
+  drops: Sq[];
+  /** The Legendary Scroll of Utanapishtim (last floor). */
+  scroll: Sq | null;
+  /** Red's budget for the floor: set when the floor starts, spent across turns. */
+  budget: Budget;
+  /** Squares that fell from the floor above at the start of this floor (for the UI). */
+  fell: Sq[];
+  /** Pieces destroyed by the fall at the start of this floor (ids in `dead`, for the UI). */
+  lost: string[];
 }
 
 
@@ -329,4 +354,8 @@ export interface GameState {
   log: LogEntry[];
   /** Game notation, one entry per turn (see notation.ts). */
   notes: NoteTurn[];
+  /** Irregular board shape ('1' open, '0' missing per square); absent on a full board. */
+  mask?: string;
+  /** Single player mode. */
+  descent?: DescentState;
 }

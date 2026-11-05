@@ -34,8 +34,8 @@ export class Rules {
   /** The age with unit and tile costs set for this board size. */
   readonly age: AgeDef;
 
-  constructor(age: AgeDef, width = age.boardSize, height = age.boardSize) {
-    this.geo = new Geo(width, height);
+  constructor(age: AgeDef, width = age.boardSize, height = age.boardSize, mask?: string) {
+    this.geo = new Geo(width, height, mask);
     const sized = age.costsBySize[width] ?? {};
     const resize = <T extends { id: string; cost?: { res: Resource; n: number } }>(d: T): T =>
       d.cost && sized[d.id] !== undefined ? { ...d, cost: { ...d.cost, n: sized[d.id] } } : d;
@@ -76,9 +76,14 @@ export function rulesFor(ageOrState: string | GameState, opts: GameOptions = {})
   if (!age) throw new Error(`Age not registered: ${id}`);
   const w = typeof ageOrState === 'string' ? (opts.width ?? age.boardSize) : ageOrState.width;
   const h = typeof ageOrState === 'string' ? (opts.height ?? age.boardSize) : ageOrState.height;
-  const key = `${id}:${w}x${h}`;
+  const mask = typeof ageOrState === 'string' ? undefined : ageOrState.mask;
+  const key = `${id}:${w}x${h}${mask ? `:${mask}` : ''}`;
   let r = registry.get(key);
-  if (!r) registry.set(key, (r = new Rules(age, w, h)));
+  if (!r) {
+    // Shaped boards (single player floors) each get their own entry; keep the cache small.
+    if (registry.size > 128) registry.delete(registry.keys().next().value!);
+    registry.set(key, (r = new Rules(age, w, h, mask)));
+  }
   return r;
 }
 
